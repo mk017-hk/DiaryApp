@@ -140,6 +140,12 @@ animation gated on the OS Reduce Motion setting.
 
 ## Status
 
-Phase 1 of 12 complete: project architecture and design system.
+Built: design system, database schema with row level security, app lock,
+onboarding, the daily question, calendar, compose and entry detail.
 
-Next: authentication and onboarding.
+Entries are held on the device for now — the store in
+`src/features/entries/entryStore.ts` wears the same shape as the
+`journal_entries` table, so moving it to Supabase changes that file and nothing
+that calls it.
+
+Next: authentication, then video capture with on-device transcription.

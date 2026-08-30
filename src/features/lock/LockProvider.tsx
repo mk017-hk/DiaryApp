@@ -13,7 +13,7 @@ import * as SecureStore from 'expo-secure-store';
 
 import { logger } from '@/services/logger';
 
-import { clearPin, isPinSet, setPin as persistPin, verifyPin } from './pinStorage';
+import { clearPin, isLockSupported, isPinSet, setPin as persistPin, verifyPin } from './pinStorage';
 
 /**
  * App lock state.
@@ -68,6 +68,13 @@ export function LockProvider({ children }: { children: ReactNode }) {
 
     void (async () => {
       try {
+        // No secure storage means no PIN can ever have been set, so there is
+        // nothing to unlock. Distinct from a failed read, which fails closed.
+        if (!(await isLockSupported())) {
+          if (!cancelled) setState('disabled');
+          return;
+        }
+
         const [configured, storedTimeout, storedBiometrics] = await Promise.all([
           isPinSet(),
           SecureStore.getItemAsync(TIMEOUT_KEY),

@@ -4,6 +4,8 @@ export type { ButtonProps, ButtonSize, ButtonVariant } from './Button';
 export { Chip } from './Chip';
 export type { ChipProps } from './Chip';
 
+export { DiaryPage } from './DiaryPage';
+
 export { Divider } from './Divider';
 
 export { EmptyState } from './EmptyState';

@@ -8,5 +8,13 @@ export { PrivacyCover } from './components/PrivacyCover';
 export { authenticateWithBiometrics, biometricLabel, getBiometricCapability } from './biometrics';
 export type { BiometricCapability, BiometricKind } from './biometrics';
 
-export { clearPin, currentCooldown, isPinSet, PIN_LENGTH, setPin, verifyPin } from './pinStorage';
+export {
+  clearPin,
+  currentCooldown,
+  isLockSupported,
+  isPinSet,
+  PIN_LENGTH,
+  setPin,
+  verifyPin,
+} from './pinStorage';
 export type { VerifyResult } from './pinStorage';

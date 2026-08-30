@@ -66,6 +66,22 @@ async function writeAttempts(state: AttemptState): Promise<void> {
   await SecureStore.setItemAsync(ATTEMPTS_KEY, JSON.stringify(state));
 }
 
+/**
+ * Whether the platform can hold a PIN at all.
+ *
+ * Distinct from "reading it failed". If there is no secure storage — the web
+ * build, say — then no PIN was ever set, and demanding one would lock the user
+ * out of an app they never locked. A read that fails on a platform that *does*
+ * have secure storage is a different matter, and the caller fails closed.
+ */
+export async function isLockSupported(): Promise<boolean> {
+  try {
+    return await SecureStore.isAvailableAsync();
+  } catch {
+    return false;
+  }
+}
+
 export async function isPinSet(): Promise<boolean> {
   try {
     return (await SecureStore.getItemAsync(PIN_HASH_KEY)) !== null;
