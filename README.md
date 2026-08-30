@@ -17,6 +17,24 @@ Then scan the QR code with Expo Go, or press `i` / `a` for a simulator.
 The app runs without Supabase credentials until Phase 2 (authentication) lands —
 the design gallery at `/` needs no backend.
 
+### Testing from an iPhone with no computer
+
+An iPhone cannot run Metro — it is a Node process, and iOS does not allow
+arbitrary runtimes — so the dev server has to live somewhere. GitHub Codespaces
+works entirely from mobile Safari and is the least friction:
+
+1. On github.com, open this repo → **Code → Codespaces → Create codespace**
+2. Wait for the container (`.devcontainer/` installs dependencies automatically)
+3. In the terminal: `npm run start:tunnel`
+4. Point the iPhone **Camera app** at the QR code and tap the banner
+
+Tunnel mode is required. The Codespace is not on your local network, so the
+default LAN QR code will never connect.
+
+Use `npm run web` and open the forwarded port on 8082 for a quick look at layout
+and colour without a phone — but haptics, real font rendering and gestures only
+exist on a device, so judge the feel in Expo Go.
+
 ### Running on Replit
 
 Import the repo, then press **Run**. That starts Expo in tunnel mode
