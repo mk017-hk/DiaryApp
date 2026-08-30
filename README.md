@@ -55,6 +55,30 @@ newest release — anything higher cannot run on a physical iPhone without a pai
 development build. Revisit when a development build is needed for camera and
 biometrics.
 
+## Database
+
+The schema lives in `supabase/migrations/`. Develop against a local stack rather
+than a hosted project, so the security policies can be tested destructively
+before any real diary exists.
+
+```bash
+npm run db:start     # local Postgres, Auth, Storage (needs Docker)
+npm run db:types     # regenerate src/types/database.generated.ts
+npm run test:rls     # two-user isolation suite
+npm run db:stop
+```
+
+`npm run test:rls` is the suite that matters most in this project. It creates two
+real users and has one of them attempt, with nothing but guessed ids, to read,
+edit, delete and plant data in the other's diary — entries, threads, transcripts,
+membership and storage objects alike. All 25 attempts must fail.
+
+Entries belong to a **diary**, and diaries have **members**. A solo user has one
+personal diary, created on signup and invisible in the UI; a shared diary is the
+same row with a second member. Every policy asks "is the caller a member of this
+diary?" through the `is_diary_member` helper, which is `SECURITY DEFINER` — a
+policy on `diary_members` that queried `diary_members` would recurse forever.
+
 ## Scripts
 
 | Command                | Does                                         |
