@@ -1,0 +1,35 @@
+# Replit configuration.
+#
+# `npm run start:tunnel` is the default run command because a phone running
+# Expo Go cannot reach Replit's container over LAN — the QR code only connects
+# through a tunnel.
+
+modules = ["nodejs-22"]
+run = "npm run start:tunnel"
+entrypoint = "app/index.tsx"
+
+hidden = [".expo", "node_modules", "dist"]
+
+[nix]
+channel = "stable-24_11"
+
+[env]
+# Metro must bind to all interfaces or Replit cannot expose it.
+REACT_NATIVE_PACKAGER_HOSTNAME = "0.0.0.0"
+
+[[ports]]
+# Metro bundler / Expo dev server.
+localPort = 8081
+externalPort = 80
+
+[[ports]]
+# Expo web preview, shown in Replit's webview.
+localPort = 8082
+externalPort = 3000
+
+[packager]
+language = "nodejs"
+
+[packager.features]
+packageSearch = true
+guessImports = false
