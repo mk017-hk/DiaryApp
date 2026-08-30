@@ -17,6 +17,24 @@ Then scan the QR code with Expo Go, or press `i` / `a` for a simulator.
 The app runs without Supabase credentials until Phase 2 (authentication) lands —
 the design gallery at `/` needs no backend.
 
+### Running on Replit
+
+Import the repo, then press **Run**. That starts Expo in tunnel mode
+(`npm run start:tunnel`).
+
+Tunnel mode is not optional here: your phone cannot reach Replit's container
+over the local network, so the default LAN QR code will never connect. The
+tunnel routes through ngrok instead, which works from anywhere.
+
+For a quick look without a phone, run `npm run web` and open Replit's webview.
+The web target is for previewing layout and colour only — fonts, haptics and
+native gestures behave differently from a real device, so judge the real feel in
+Expo Go.
+
+First run on Replit is slow: the dependency install is large and Metro has to
+build the whole bundle. If Metro is killed part-way, it has run out of memory —
+`npm run web` is lighter than tunnel mode and usually survives.
+
 ## Scripts
 
 | Command             | Does                                        |

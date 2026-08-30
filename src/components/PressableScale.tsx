@@ -42,20 +42,32 @@ export function PressableScale({
   const motion = useMotion();
   const pressed = useSharedValue(0);
 
+  const isDisabled = disabled === true;
+
+  // The disabled dim has to be computed inside the worklet. Reanimated applies
+  // animated styles imperatively, so a static `{ opacity: 0.4 }` further along
+  // the style array is silently overridden and the control looks enabled.
   const animatedStyle = useAnimatedStyle(() => {
+    const restingOpacity = isDisabled ? 0.4 : 1;
+
     if (motion.reduced) {
-      return { opacity: withTiming(pressed.value === 1 ? 0.6 : 1, { duration: 0 }) };
+      return {
+        opacity: withTiming(pressed.value === 1 ? restingOpacity * 0.6 : restingOpacity, {
+          duration: 0,
+        }),
+      };
     }
+
     return {
       transform: [
         {
           scale: withSpring(
-            pressed.value === 1 ? theme.motion.pressScale : 1,
+            pressed.value === 1 && !isDisabled ? theme.motion.pressScale : 1,
             theme.motion.spring.snappy,
           ),
         },
       ],
-      opacity: withTiming(pressed.value === 1 ? 0.9 : 1, {
+      opacity: withTiming(pressed.value === 1 ? restingOpacity * 0.9 : restingOpacity, {
         duration: theme.motion.duration.instant,
       }),
     };
@@ -64,7 +76,7 @@ export function PressableScale({
   return (
     <AnimatedPressable
       accessibilityRole="button"
-      accessibilityState={{ disabled: disabled === true }}
+      accessibilityState={{ disabled: isDisabled }}
       disabled={disabled}
       hitSlop={ensureTouchTarget ? hitSlopFor(sizing.minTouchTarget) : undefined}
       onPressIn={(event) => {
@@ -78,7 +90,7 @@ export function PressableScale({
         pressed.value = 0;
         onPressOut?.(event);
       }}
-      style={[style, animatedStyle, disabled === true && { opacity: 0.4 }]}
+      style={[style, animatedStyle]}
       {...rest}
     >
       {children}

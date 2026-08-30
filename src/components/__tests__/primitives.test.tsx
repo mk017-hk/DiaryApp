@@ -41,6 +41,14 @@ describe('Button', () => {
 
     expect(screen.getByLabelText('Save')).toBeDisabled();
   });
+
+  it('visibly dims when disabled', async () => {
+    // Regression: the dim used to sit in a static style after the animated one,
+    // which Reanimated overrode — so a disabled button looked fully enabled.
+    await renderWithProviders(<Button label="Save" onPress={jest.fn()} disabled />);
+
+    expect(screen.getByLabelText('Save')).toHaveStyle({ opacity: 0.4 });
+  });
 });
 
 describe('Chip', () => {
