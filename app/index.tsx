@@ -1,3 +1,4 @@
+import { useRouter } from 'expo-router';
 import { useState, type ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
 
@@ -24,6 +25,7 @@ import { emotionColors, space, useTheme, useThemePreference, type TextVariant } 
  */
 export default function DesignGallery() {
   const theme = useTheme();
+  const router = useRouter();
   const { preference, setPreference } = useThemePreference();
   const [note, setNote] = useState('');
   const [selectedEmotions, setSelectedEmotions] = useState<string[]>(['Calm']);
@@ -46,6 +48,19 @@ export default function DesignGallery() {
           Every primitive, in the theme you are viewing.
         </Text>
       </View>
+
+      <Section title="App lock">
+        <Text variant="callout" color="inkSecondary">
+          Set a PIN, then background the app or tap Lock now to see it engage.
+        </Text>
+        <View style={styles.row}>
+          <Button
+            label="App lock settings"
+            onPress={() => router.push('/security')}
+            variant="secondary"
+          />
+        </View>
+      </Section>
 
       <Section title="Theme">
         <View style={styles.row}>
