@@ -22,7 +22,7 @@ import { fromDateKey, longDate, toDateKey, yearsAgo } from '@/lib/date';
 export default function Today() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { name } = useProfile();
+  const { name, tone, intentions, capture } = useProfile();
 
   const [entries, setEntries] = useState<Entry[]>([]);
   const [memories, setMemories] = useState<Entry[]>([]);
@@ -56,12 +56,14 @@ export default function Today() {
         setMemories(resurfaced);
         setToday(now);
         setHasEntryToday(answeredToday);
-        setQuestion(dailyPrompt({ name, daysSinceLast, hasEntryToday: answeredToday }));
+        setQuestion(
+          dailyPrompt({ name, tone, intentions, daysSinceLast, hasEntryToday: answeredToday }),
+        );
       })();
       return () => {
         cancelled = true;
       };
-    }, [name]),
+    }, [name, tone, intentions]),
   );
 
   // Nothing renders until the clock has been read once — a flash of the wrong
@@ -82,9 +84,13 @@ export default function Today() {
         </Text>
 
         <Animated.View entering={FadeInDown.duration(400)} style={styles.opening}>
-          <Text variant="title3" color="inkSecondary">
-            {personalGreeting(name, today)}
-          </Text>
+          {/* The 'barely at all' tone returns nothing, and an empty line of
+              type would leave a gap where a greeting used to be. */}
+          {personalGreeting(name, tone, today).length > 0 && (
+            <Text variant="title3" color="inkSecondary">
+              {personalGreeting(name, tone, today)}
+            </Text>
+          )}
           <Text variant="display" lineHeight={46}>
             {question}
           </Text>
@@ -92,18 +98,28 @@ export default function Today() {
 
         <View style={styles.actions}>
           <Button
-            label={hasEntryToday ? 'Add another moment' : 'Record today'}
-            onPress={() => router.push('/compose?mode=video')}
+            label={
+              hasEntryToday
+                ? 'Add another moment'
+                : capture === 'write'
+                  ? 'Write today'
+                  : 'Record today'
+            }
+            onPress={() =>
+              router.push(capture === 'write' ? '/compose?mode=write' : '/compose?mode=video')
+            }
             fullWidth
           />
           <PressableScale
-            onPress={() => router.push('/compose?mode=write')}
+            onPress={() =>
+              router.push(capture === 'write' ? '/compose?mode=video' : '/compose?mode=write')
+            }
             haptic="light"
-            accessibilityLabel="Write instead"
+            accessibilityLabel={capture === 'write' ? 'Record instead' : 'Write instead'}
             style={styles.writeInstead}
           >
             <Text variant="label" color="accent">
-              or write it down instead
+              {capture === 'write' ? 'or record it instead' : 'or write it down instead'}
             </Text>
           </PressableScale>
         </View>

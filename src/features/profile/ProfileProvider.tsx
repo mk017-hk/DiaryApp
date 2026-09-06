@@ -1,7 +1,16 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 
-import { EMPTY_PROFILE, firstName, loadProfile, saveProfile, type Profile } from './profileStore';
+import {
+  EMPTY_PROFILE,
+  firstName,
+  loadProfile,
+  saveProfile,
+  type CapturePreferenceId,
+  type IntentionId,
+  type Profile,
+  type ToneId,
+} from './profileStore';
 
 interface ProfileContextValue {
   profile: Profile;
@@ -9,7 +18,15 @@ interface ProfileContextValue {
   ready: boolean;
   name: string;
   onboarded: boolean;
-  completeOnboarding: (input: { name: string; intention?: string }) => Promise<void>;
+  tone: ToneId;
+  intentions: IntentionId[];
+  capture: CapturePreferenceId;
+  completeOnboarding: (input: {
+    name: string;
+    intentions: IntentionId[];
+    tone: ToneId;
+    capture: CapturePreferenceId;
+  }) => Promise<void>;
   reset: () => Promise<void>;
 }
 
@@ -31,15 +48,25 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  const completeOnboarding = useCallback(async (input: { name: string; intention?: string }) => {
-    const next: Profile = {
-      name: input.name.trim(),
-      ...(input.intention !== undefined ? { intention: input.intention } : {}),
-      onboardedAt: new Date().toISOString(),
-    };
-    setProfile(next);
-    await saveProfile(next);
-  }, []);
+  const completeOnboarding = useCallback(
+    async (input: {
+      name: string;
+      intentions: IntentionId[];
+      tone: ToneId;
+      capture: CapturePreferenceId;
+    }) => {
+      const next: Profile = {
+        name: input.name.trim(),
+        intentions: input.intentions,
+        tone: input.tone,
+        capture: input.capture,
+        onboardedAt: new Date().toISOString(),
+      };
+      setProfile(next);
+      await saveProfile(next);
+    },
+    [],
+  );
 
   const reset = useCallback(async () => {
     setProfile(EMPTY_PROFILE);
@@ -51,6 +78,9 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
       profile,
       ready,
       name: firstName(profile),
+      tone: profile.tone,
+      intentions: profile.intentions,
+      capture: profile.capture,
       onboarded: profile.onboardedAt !== null,
       completeOnboarding,
       reset,

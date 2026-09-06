@@ -15,3 +15,9 @@ jest.mock('expo-font', () => ({
   loadAsync: jest.fn(),
   isLoaded: () => true,
 }));
+
+// AsyncStorage is a native module; its shipped mock stands in under Jest so
+// any suite that touches stored state works without wiring one per file.
+jest.mock('@react-native-async-storage/async-storage', () =>
+  require('@react-native-async-storage/async-storage/jest/async-storage-mock'),
+);

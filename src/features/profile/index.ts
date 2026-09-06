@@ -1,3 +1,12 @@
 export { ProfileProvider, useProfile } from './ProfileProvider';
-export { clearProfile, firstName, loadProfile, saveProfile, EMPTY_PROFILE } from './profileStore';
-export type { Profile } from './profileStore';
+export {
+  CAPTURE_PREFERENCES,
+  clearProfile,
+  EMPTY_PROFILE,
+  firstName,
+  INTENTIONS,
+  loadProfile,
+  saveProfile,
+  TONES,
+} from './profileStore';
+export type { CapturePreferenceId, IntentionId, Profile, ToneId } from './profileStore';
