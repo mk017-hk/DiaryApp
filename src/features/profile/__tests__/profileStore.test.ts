@@ -1,4 +1,6 @@
-import { __testing, EMPTY_PROFILE } from '../profileStore';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+import { __testing, EMPTY_PROFILE, loadProfile, saveProfile } from '../profileStore';
 
 const { migrate } = __testing;
 
@@ -56,5 +58,28 @@ describe('reading a stored profile', () => {
 
   it('survives a profile with nothing useful in it', () => {
     expect(migrate({})).toEqual(EMPTY_PROFILE);
+  });
+});
+
+// Persistence is deliberately off while onboarding is being shaped, so the
+// flow can be walked through on every launch. When PERSIST_PROFILE is flipped
+// back on, these two expectations are what needs updating.
+describe('while profiles are not being saved', () => {
+  beforeEach(async () => {
+    await AsyncStorage.clear();
+    jest.clearAllMocks();
+  });
+
+  it('writes nothing', async () => {
+    await saveProfile({ ...EMPTY_PROFILE, name: 'James', onboardedAt: new Date().toISOString() });
+
+    expect(await AsyncStorage.getItem('profile.v1')).toBeNull();
+  });
+
+  it('starts empty, and clears anything an earlier build left behind', async () => {
+    await AsyncStorage.setItem('profile.v1', JSON.stringify({ name: 'James', tone: 'warm' }));
+
+    expect(await loadProfile()).toEqual(EMPTY_PROFILE);
+    expect(await AsyncStorage.getItem('profile.v1')).toBeNull();
   });
 });

@@ -15,6 +15,21 @@ import { logger } from '@/services/logger';
 
 const KEY = 'profile.v1';
 
+/**
+ * Profile persistence, currently off.
+ *
+ * While onboarding is still being shaped, the app starts fresh on every
+ * launch so the flow can be walked through again and again without deleting
+ * and reinstalling. Anything a previous build wrote is cleared on first load
+ * rather than left behind as dead data.
+ *
+ * Entries are unaffected — those still save, or there would be nothing to
+ * test the diary with.
+ *
+ * Flip to true when onboarding settles.
+ */
+const PERSIST_PROFILE = false;
+
 /** What someone is here for. More than one can be true at once. */
 export const INTENTIONS = [
   { id: 'everyday', label: 'Remember the everyday' },
@@ -103,6 +118,13 @@ function migrate(parsed: Record<string, unknown>): Profile {
 }
 
 export async function loadProfile(): Promise<Profile> {
+  if (!PERSIST_PROFILE) {
+    // Clear anything an earlier build left, so onboarding always starts clean
+    // and no stale profile lingers on the device.
+    await clearProfile();
+    return EMPTY_PROFILE;
+  }
+
   try {
     const raw = await AsyncStorage.getItem(KEY);
     if (raw === null) return EMPTY_PROFILE;
@@ -114,6 +136,8 @@ export async function loadProfile(): Promise<Profile> {
 }
 
 export async function saveProfile(profile: Profile): Promise<void> {
+  if (!PERSIST_PROFILE) return;
+
   try {
     await AsyncStorage.setItem(KEY, JSON.stringify(profile));
   } catch (error) {
