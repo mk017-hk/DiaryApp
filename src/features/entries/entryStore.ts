@@ -26,6 +26,8 @@ export interface Entry {
   emotions: string[];
   /** Local file URI of a recorded video, if there is one. */
   videoUri?: string;
+  /** First frame, for lists. Video is never streamed just to render a row. */
+  posterUri?: string;
   /** What was said, once transcription exists. Separate from the note. */
   transcript?: string;
   isFavourite: boolean;

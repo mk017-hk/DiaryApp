@@ -8,6 +8,7 @@ import { Button, DiaryPage, PressableScale, Text } from '@/components';
 import { space, useTheme } from '@/design';
 import { dailyPrompt, personalGreeting } from '@/features/assistant/prompts';
 import { listEntries, onThisDay, type Entry } from '@/features/entries/entryStore';
+import { VideoPoster } from '@/features/media';
 import { useProfile } from '@/features/profile';
 import { fromDateKey, longDate, toDateKey, yearsAgo } from '@/lib/date';
 
@@ -159,8 +160,6 @@ function MemoryCard({ entry, onPress }: { entry: Entry; onPress: () => void }) {
 }
 
 function EntryRow({ entry, onPress }: { entry: Entry; onPress: () => void }) {
-  const theme = useTheme();
-
   return (
     <PressableScale
       onPress={onPress}
@@ -168,30 +167,30 @@ function EntryRow({ entry, onPress }: { entry: Entry; onPress: () => void }) {
       accessibilityLabel={`Entry from ${longDate(fromDateKey(entry.entryDate))}`}
       style={styles.row}
     >
-      <View style={styles.rowHeader}>
+      {/* A still, never the clip. Streaming video to render a scrolling list
+          is slow here and expensive once this is server-backed. */}
+      {entry.videoUri !== undefined && <VideoPoster posterUri={entry.posterUri} />}
+
+      <View style={styles.rowText}>
         <Text variant="caption" color="inkTertiary">
           {longDate(fromDateKey(entry.entryDate))}
         </Text>
-        {entry.videoUri !== undefined && (
-          <View style={[styles.badge, { backgroundColor: theme.colors.accentSoft }]} />
-        )}
+        <Text variant="body" numberOfLines={2} color="ink">
+          {entry.body.length > 0 ? entry.body : 'A recorded moment'}
+        </Text>
       </View>
-      <Text variant="body" numberOfLines={2} color="ink">
-        {entry.body.length > 0 ? entry.body : 'A recorded moment'}
-      </Text>
     </PressableScale>
   );
 }
 
 const styles = StyleSheet.create({
   actions: { gap: space.sm, marginTop: space.xl },
-  badge: { borderRadius: 3, height: 6, width: 6 },
   blank: { maxWidth: 320 },
   content: { paddingRight: space.lg },
   memory: { gap: space.xxs, padding: space.md },
   opening: { gap: space.xs, marginTop: space.xs },
-  row: { gap: space.xxs, paddingVertical: space.sm },
-  rowHeader: { alignItems: 'center', flexDirection: 'row', gap: space.xs },
+  row: { alignItems: 'center', flexDirection: 'row', gap: space.sm, paddingVertical: space.sm },
+  rowText: { flex: 1, gap: space.xxs },
   section: { gap: space.sm, marginTop: space.xxl },
   writeInstead: { alignItems: 'center', paddingVertical: space.xs },
 });

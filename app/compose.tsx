@@ -13,9 +13,11 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Button, Chip, DiaryPage, PressableScale, Text } from '@/components';
 import { space, useTheme } from '@/design';
-import { createEntry } from '@/features/entries/entryStore';
+import { createEntry, updateEntry } from '@/features/entries/entryStore';
+import { persistRecording, VideoNote } from '@/features/media';
 import { useProfile } from '@/features/profile';
 import { longDate, toDateKey } from '@/lib/date';
+import { logger } from '@/services/logger';
 
 const MOODS = [
   { value: 1, label: 'Heavy' },
@@ -50,7 +52,12 @@ export default function Compose() {
     if (body.trim().length === 0 && videoUri === null) return;
     setSaving(true);
     const now = new Date();
-    await createEntry({
+
+    // The entry is written first, pointing at the temporary recording. If the
+    // move to permanent storage then fails, the entry still exists and still
+    // references a playable file — the worst case is a clip the system may
+    // later reclaim, rather than a moment lost outright.
+    const entry = await createEntry({
       entryDate: toDateKey(now),
       entryAt: now.toISOString(),
       body: body.trim(),
@@ -59,6 +66,19 @@ export default function Compose() {
       ...(videoUri !== null ? { videoUri } : {}),
       isFavourite: false,
     });
+
+    if (videoUri !== null) {
+      try {
+        const stored = await persistRecording(videoUri, entry.id);
+        await updateEntry(entry.id, {
+          videoUri: stored.uri,
+          ...(stored.posterUri !== undefined ? { posterUri: stored.posterUri } : {}),
+        });
+      } catch (error) {
+        logger.error('Could not move recording into permanent storage', { error });
+      }
+    }
+
     router.back();
   };
 
@@ -103,15 +123,18 @@ export default function Compose() {
           </View>
 
           {videoUri !== null && (
-            <View
-              style={[
-                styles.videoNote,
-                { backgroundColor: theme.colors.accentWash, borderRadius: theme.radius.md },
-              ]}
-            >
-              <Text variant="caption" color="inkSecondary">
-                Video recorded · it will be transcribed here once that ships
-              </Text>
+            <View style={styles.videoNote}>
+              <VideoNote uri={videoUri} />
+              <PressableScale
+                onPress={() => setVideoUri(null)}
+                haptic="light"
+                accessibilityLabel="Discard this recording"
+                style={styles.discard}
+              >
+                <Text variant="caption" color="inkTertiary">
+                  Record again
+                </Text>
+              </PressableScale>
             </View>
           )}
 
@@ -287,7 +310,8 @@ const styles = StyleSheet.create({
     width: 80,
   },
   shutterStop: { backgroundColor: '#E5544B', borderRadius: 6, height: 30, width: 30 },
-  videoNote: { marginTop: space.md, padding: space.sm },
+  discard: { alignSelf: 'center', paddingVertical: space.xs },
+  videoNote: { gap: space.xs, marginTop: space.md },
   writing: {
     fontSize: 19,
     lineHeight: 32,

@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Button, DiaryPage, ErrorState, PressableScale, Text } from '@/components';
 import { space, useTheme } from '@/design';
 import { deleteEntry, getEntry, updateEntry, type Entry } from '@/features/entries/entryStore';
+import { deleteRecording, VideoNote } from '@/features/media';
 import { fromDateKey, fullDate, longDate } from '@/lib/date';
 
 const MOOD_LABELS: Record<number, string> = {
@@ -64,6 +65,9 @@ export default function EntryDetail() {
   };
 
   const remove = async () => {
+    // Files go too. Orphaned video is invisible to the user but keeps taking
+    // up their storage, and it is their diary — deleting should mean deleting.
+    await deleteRecording(entry.id);
     await deleteEntry(entry.id);
     router.back();
   };
@@ -105,15 +109,8 @@ export default function EntryDetail() {
         </View>
 
         {entry.videoUri !== undefined && (
-          <View
-            style={[
-              styles.videoNote,
-              { backgroundColor: theme.colors.accentWash, borderRadius: theme.radius.md },
-            ]}
-          >
-            <Text variant="caption" color="inkSecondary">
-              A video was recorded with this entry. Playback arrives with the media pipeline.
-            </Text>
+          <View style={styles.videoNote}>
+            <VideoNote uri={entry.videoUri} />
           </View>
         )}
 
@@ -139,6 +136,6 @@ const styles = StyleSheet.create({
   dateBlock: { gap: space.xxs, marginTop: space.lg },
   footer: { marginTop: space.xxxl },
   header: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
-  videoNote: { marginTop: space.lg, padding: space.sm },
+  videoNote: { marginTop: space.lg },
   writing: { fontSize: 19, lineHeight: 32, marginTop: space.lg },
 });
