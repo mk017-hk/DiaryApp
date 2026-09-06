@@ -1,11 +1,13 @@
 # Replit configuration.
 #
-# `npm run start:tunnel` is the default run command because a phone running
-# Expo Go cannot reach Replit's container over LAN — the QR code only connects
-# through a tunnel.
+# Run starts Expo in tunnel mode, because a phone running Expo Go cannot reach
+# Replit's container over LAN — the QR code only connects through a tunnel.
+#
+# `npm install` runs first so pressing Run still works after a git pull that
+# changed dependencies. It is a no-op costing a few seconds when nothing moved.
 
 modules = ["nodejs-22"]
-run = "npm run start:tunnel"
+run = "npm install && npm run start:tunnel"
 entrypoint = "app/index.tsx"
 
 hidden = [".expo", "node_modules", "dist"]

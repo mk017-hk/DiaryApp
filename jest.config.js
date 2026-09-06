@@ -7,6 +7,9 @@ module.exports = {
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/src/$1',
   },
+  // The RLS suite needs Docker and a running Supabase stack, so it stays out
+  // of `npm test`. Run it with `npm run test:rls`.
+  testPathIgnorePatterns: ['/node_modules/', '<rootDir>/supabase/'],
   collectCoverageFrom: [
     'src/**/*.{ts,tsx}',
     '!src/**/*.d.ts',

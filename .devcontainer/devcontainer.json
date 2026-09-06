@@ -1,0 +1,25 @@
+{
+  "name": "DiaryApp",
+  "image": "mcr.microsoft.com/devcontainers/javascript-node:22",
+
+  // Installs dependencies while the Codespace is being created, so the first
+  // `npm run start:tunnel` does not sit through a cold install.
+  "postCreateCommand": "npm install",
+
+  "forwardPorts": [8081, 8082],
+  "portsAttributes": {
+    "8081": { "label": "Metro bundler" },
+    "8082": { "label": "Expo web preview" }
+  },
+
+  "customizations": {
+    "vscode": {
+      "extensions": ["dbaeumer.vscode-eslint", "esbenp.prettier-vscode", "expo.vscode-expo-tools"],
+      "settings": {
+        "editor.formatOnSave": true,
+        "editor.defaultFormatter": "esbenp.prettier-vscode",
+        "typescript.tsdk": "node_modules/typescript/lib"
+      }
+    }
+  }
+}
