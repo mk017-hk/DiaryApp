@@ -48,7 +48,7 @@ export function VideoNote({ uri }: VideoNoteProps) {
         player={player}
         style={styles.video}
         nativeControls
-        allowsFullscreen
+        fullscreenOptions={{ enable: true }}
         allowsPictureInPicture={false}
         contentFit="cover"
         accessibilityLabel="Your recorded entry"

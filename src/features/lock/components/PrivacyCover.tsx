@@ -44,9 +44,13 @@ export function PrivacyCover({ children }: { children: ReactNode }) {
 
 const styles = StyleSheet.create({
   cover: {
-    ...StyleSheet.absoluteFillObject,
     alignItems: 'center',
+    bottom: 0,
     justifyContent: 'center',
+    left: 0,
+    position: 'absolute',
+    right: 0,
+    top: 0,
   },
   fill: { flex: 1 },
 });

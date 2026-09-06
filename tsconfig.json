@@ -14,7 +14,7 @@
     // TypeScript 6 no longer pulls in every @types package automatically, so
     // Jest's globals have to be requested explicitly. Library types that are
     // imported (React, Expo) resolve through imports and need no entry here.
-    "types": ["jest"],
+    "types": ["jest", "node"],
     "paths": {
       "@/*": ["./src/*"],
       "@/design": ["./src/design"],

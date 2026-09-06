@@ -26,31 +26,47 @@ export default function Today() {
 
   const [entries, setEntries] = useState<Entry[]>([]);
   const [memories, setMemories] = useState<Entry[]>([]);
+  const [today, setToday] = useState<Date | null>(null);
+  const [hasEntryToday, setHasEntryToday] = useState(false);
+  const [question, setQuestion] = useState('');
 
+  // Everything time-dependent is settled here rather than during render.
+  // Reading the clock while rendering makes the greeting and the question
+  // liable to change on any incidental re-render, and React 19 rightly
+  // treats it as impure.
   useFocusEffect(
     useCallback(() => {
       let cancelled = false;
       void (async () => {
         const [all, resurfaced] = await Promise.all([listEntries(), onThisDay()]);
         if (cancelled) return;
+
+        const now = new Date();
+        const todayKey = toDateKey(now);
+        const answeredToday = all.some((entry) => entry.entryDate === todayKey);
+        const latest = all[0];
+        const daysSinceLast =
+          latest === undefined
+            ? null
+            : Math.round(
+                (now.getTime() - fromDateKey(latest.entryDate).getTime()) / (1000 * 60 * 60 * 24),
+              );
+
         setEntries(all);
         setMemories(resurfaced);
+        setToday(now);
+        setHasEntryToday(answeredToday);
+        setQuestion(dailyPrompt({ name, daysSinceLast, hasEntryToday: answeredToday }));
       })();
       return () => {
         cancelled = true;
       };
-    }, []),
+    }, [name]),
   );
 
-  const todayKey = toDateKey(new Date());
-  const hasEntryToday = entries.some((entry) => entry.entryDate === todayKey);
-  const latest = entries[0];
-  const daysSinceLast =
-    latest === undefined
-      ? null
-      : Math.round((Date.now() - fromDateKey(latest.entryDate).getTime()) / (1000 * 60 * 60 * 24));
-
-  const question = dailyPrompt({ name, daysSinceLast, hasEntryToday });
+  // Nothing renders until the clock has been read once — a flash of the wrong
+  // greeting is worse than a beat of nothing.
+  if (today === null) return <DiaryPage />;
 
   return (
     <DiaryPage>
@@ -62,12 +78,12 @@ export default function Today() {
         showsVerticalScrollIndicator={false}
       >
         <Text variant="caption" color="inkTertiary">
-          {longDate(new Date())}
+          {longDate(today)}
         </Text>
 
         <Animated.View entering={FadeInDown.duration(400)} style={styles.opening}>
           <Text variant="title3" color="inkSecondary">
-            {personalGreeting(name)}
+            {personalGreeting(name, today)}
           </Text>
           <Text variant="display" lineHeight={46}>
             {question}

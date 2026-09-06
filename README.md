@@ -49,11 +49,19 @@ is lighter than tunnel mode and usually survives.
 
 ### Expo Go and SDK version
 
-iOS Expo Go loads only the SDK matching its own major version, and the App Store
-build is **54.0.2**. That is why this project targets **SDK 54** rather than the
-newest release — anything higher cannot run on a physical iPhone without a paid
-development build. Revisit when a development build is needed for camera and
-biometrics.
+iOS Expo Go loads only the SDK matching its own major version, and Apple ships
+just the latest build — there is no way to install an older one. So the project
+SDK has to track whatever is currently in the App Store.
+
+If a device reports an incompatible SDK, check what the store is actually
+serving before changing anything:
+
+```bash
+curl -s "https://itunes.apple.com/lookup?id=982107779" | grep -o '"version":"[^"]*"'
+```
+
+This has already moved once: the store was on 54.0.2 at the end of August and
+57.0.9 by early September.
 
 ## Database
 
