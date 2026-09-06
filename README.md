@@ -14,8 +14,8 @@ npm start
 
 Then scan the QR code with Expo Go, or press `i` / `a` for a simulator.
 
-The app runs without Supabase credentials until Phase 2 (authentication) lands —
-the design gallery at `/` needs no backend.
+No Supabase credentials are needed yet. Entries are kept on the device until
+authentication lands, so the app runs end to end with no backend at all.
 
 ### Testing from an iPhone with no computer
 
@@ -28,8 +28,8 @@ easier on a phone than VS Code in mobile Safari.
 starts the tunnel.
 
 **Codespaces** — on github.com, **Code → Codespaces → Create codespace**, then
-run `npm run start:tunnel` in the terminal. `.devcontainer/` installs
-dependencies while the container builds.
+run `npm run dev` in the terminal. That installs anything new and starts the
+tunnel, which matters after a pull that changed dependencies.
 
 Either way, point the iPhone **Camera app** at the QR code and tap the banner.
 iOS Expo Go has no built-in scanner — Android is the platform that scans from
@@ -39,7 +39,7 @@ terminal to switch to a tappable link instead.
 Tunnel mode is required in both. Neither container is on your local network, so
 the default LAN QR code will never connect.
 
-For a quick look without a phone, run `npm run web` and open the forwarded port 8082. The web target previews layout and colour only — haptics, real font
+For a quick look without a phone, run `npm run web` and open the forwarded port 8082. The web target previews layout and colour only — video, haptics, real font
 rendering and native gestures exist only on a device, so judge the feel in
 Expo Go.
 
@@ -83,6 +83,7 @@ policy on `diary_members` that queried `diary_members` would recurse forever.
 
 | Command                | Does                                         |
 | ---------------------- | -------------------------------------------- |
+| `npm run dev`          | Install, then start the tunnel — one command |
 | `npm start`            | Expo dev server (LAN — for local machines)   |
 | `npm run start:tunnel` | Expo dev server over a tunnel (cloud/Replit) |
 | `npm run web`          | Web preview on port 8082                     |

@@ -4,6 +4,7 @@
   "private": true,
   "main": "expo-router/entry",
   "scripts": {
+    "dev": "npm install && expo start --tunnel",
     "start": "expo start",
     "start:tunnel": "expo start --tunnel",
     "android": "expo start --android",
