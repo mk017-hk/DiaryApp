@@ -1,4 +1,4 @@
-import { useId, useState } from 'react';
+import { useId, useState, type Ref } from 'react';
 import {
   StyleSheet,
   TextInput,
@@ -21,6 +21,8 @@ export interface FieldProps extends Omit<TextInputProps, 'style' | 'placeholderT
   /** Visually hides the label but keeps it for screen readers. */
   hideLabel?: boolean;
   containerStyle?: StyleProp<ViewStyle>;
+  /** Lets a form move focus to the next field on return. */
+  ref?: Ref<TextInput>;
 }
 
 /**
@@ -37,6 +39,7 @@ export function Field({
   hideLabel = false,
   containerStyle,
   multiline,
+  ref,
   ...rest
 }: FieldProps) {
   const theme = useTheme();
@@ -54,6 +57,7 @@ export function Field({
       )}
 
       <TextInput
+        ref={ref}
         accessibilityLabel={label}
         accessibilityHint={hint}
         aria-errormessage={hasError ? errorId : undefined}

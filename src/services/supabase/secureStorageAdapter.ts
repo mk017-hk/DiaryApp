@@ -1,4 +1,5 @@
 import * as SecureStore from 'expo-secure-store';
+import { Platform } from 'react-native';
 
 import { logger } from '@/services/logger';
 
@@ -34,8 +35,53 @@ async function clearChunks(key: string, count: number): Promise<void> {
   await Promise.all(deletions);
 }
 
+/**
+ * The web preview has no keychain.
+ *
+ * `expo-secure-store` is native-only, so on web every write here failed and
+ * was swallowed by the catch below — the app signed you in and forgot by the
+ * next reload, with nothing on screen to say why. `npm run web` is how this
+ * project gets looked at, and an auth flow that cannot be walked twice is not
+ * much of a preview.
+ *
+ * So on web the session goes to localStorage, which is what a web app would
+ * use anyway. It is worth being plain about the tradeoff: localStorage is
+ * readable by any script on the origin, and it is not where a real diary's
+ * session should live. It is acceptable here only because web is a layout
+ * preview and never a shipping target — the app is iOS, and on iOS this is
+ * the keychain.
+ */
+const webStorage = {
+  getItem(key: string): string | null {
+    try {
+      return globalThis.localStorage.getItem(key);
+    } catch (error) {
+      logger.error('Failed to read stored session', { error });
+      return null;
+    }
+  },
+  setItem(key: string, value: string): void {
+    try {
+      globalThis.localStorage.setItem(key, value);
+    } catch (error) {
+      logger.error('Failed to persist session', { error });
+    }
+  },
+  removeItem(key: string): void {
+    try {
+      globalThis.localStorage.removeItem(key);
+    } catch (error) {
+      logger.error('Failed to clear stored session', { error });
+    }
+  },
+};
+
+const isWeb = Platform.OS === 'web';
+
 export const secureStorageAdapter = {
   async getItem(key: string): Promise<string | null> {
+    if (isWeb) return webStorage.getItem(key);
+
     try {
       const count = await readChunkCount(key);
       if (count === 0) return null;
@@ -62,6 +108,8 @@ export const secureStorageAdapter = {
   },
 
   async setItem(key: string, value: string): Promise<void> {
+    if (isWeb) return webStorage.setItem(key, value);
+
     try {
       // Remove any longer previous session first, or its trailing chunks
       // would be read back as part of the new one.
@@ -84,6 +132,8 @@ export const secureStorageAdapter = {
   },
 
   async removeItem(key: string): Promise<void> {
+    if (isWeb) return webStorage.removeItem(key);
+
     try {
       await clearChunks(key, await readChunkCount(key));
       await SecureStore.deleteItemAsync(key);

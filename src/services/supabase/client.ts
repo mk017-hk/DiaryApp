@@ -41,16 +41,45 @@ if (!isSupabaseConfigured) {
   );
 }
 
-export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
-  auth: {
-    storage: secureStorageAdapter,
-    autoRefreshToken: true,
-    persistSession: true,
-    // There are no URL sessions to detect in a native app, and leaving this on
-    // makes the client parse window.location, which does not exist here.
-    detectSessionInUrl: false,
+/**
+ * A stand-in URL for builds with no credentials.
+ *
+ * `createClient` throws on an empty URL, and it is called at import time, so an
+ * unconfigured build would fail before a single screen rendered — including the
+ * screens that need no backend at all. The diary has to keep working without
+ * one: entries are local, and it is the only way to run in Expo Go without a
+ * hosted project.
+ *
+ * Nothing is ever sent here. `.invalid` is reserved by RFC 2606 precisely so it
+ * can never resolve, and the fetch below refuses before DNS would be asked.
+ */
+const PLACEHOLDER_URL = 'http://unconfigured.invalid';
+
+/**
+ * Refuses every request in an unconfigured build.
+ *
+ * Callers check `isSupabaseConfigured` first. This is what happens when one
+ * forgets: an immediate, named failure instead of a request to a host that
+ * does not exist, timing out somewhere far from the cause.
+ */
+const refuseAllRequests: typeof fetch = () =>
+  Promise.reject(new Error('Supabase is not configured in this build'));
+
+export const supabase = createClient<Database>(
+  isSupabaseConfigured ? supabaseUrl : PLACEHOLDER_URL,
+  isSupabaseConfigured ? supabaseAnonKey : 'unconfigured',
+  {
+    auth: {
+      storage: secureStorageAdapter,
+      autoRefreshToken: true,
+      persistSession: true,
+      // There are no URL sessions to detect in a native app, and leaving this on
+      // makes the client parse window.location, which does not exist here.
+      detectSessionInUrl: false,
+    },
+    ...(isSupabaseConfigured ? {} : { global: { fetch: refuseAllRequests } }),
   },
-});
+);
 
 /**
  * Refresh tokens only while the app is in front.

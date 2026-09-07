@@ -102,6 +102,17 @@ export async function deleteEntry(id: string): Promise<void> {
   await writeAll(entries.filter((entry) => entry.id !== id));
 }
 
+/**
+ * Removes every entry from this device.
+ *
+ * For signing out and for deleting an account. Recorded video does not live in
+ * AsyncStorage, so `deleteAllRecordings` in the media module has to run
+ * alongside this — the two together are what actually empties the device.
+ */
+export async function clearEntries(): Promise<void> {
+  await AsyncStorage.removeItem(KEY);
+}
+
 /** Entries from this day in previous years. */
 export async function onThisDay(today: Date = new Date()): Promise<Entry[]> {
   const month = today.getMonth();

@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-import { __testing, EMPTY_PROFILE, loadProfile, saveProfile } from '../profileStore';
+import { __testing, clearProfile, EMPTY_PROFILE, loadProfile, saveProfile } from '../profileStore';
 
 const { migrate } = __testing;
 
@@ -61,25 +61,53 @@ describe('reading a stored profile', () => {
   });
 });
 
-// Persistence is deliberately off while onboarding is being shaped, so the
-// flow can be walked through on every launch. When PERSIST_PROFILE is flipped
-// back on, these two expectations are what needs updating.
-describe('while profiles are not being saved', () => {
+describe('keeping a profile between launches', () => {
   beforeEach(async () => {
     await AsyncStorage.clear();
     jest.clearAllMocks();
   });
 
-  it('writes nothing', async () => {
-    await saveProfile({ ...EMPTY_PROFILE, name: 'James', onboardedAt: new Date().toISOString() });
+  it('reads back what it wrote', async () => {
+    const profile = {
+      ...EMPTY_PROFILE,
+      name: 'James',
+      intentions: ['through' as const],
+      tone: 'warm' as const,
+      onboardedAt: '2026-09-06T18:00:00.000Z',
+    };
 
-    expect(await AsyncStorage.getItem('profile.v1')).toBeNull();
+    await saveProfile(profile);
+
+    expect(await loadProfile()).toEqual(profile);
   });
 
-  it('starts empty, and clears anything an earlier build left behind', async () => {
-    await AsyncStorage.setItem('profile.v1', JSON.stringify({ name: 'James', tone: 'warm' }));
+  it('starts empty when nothing has been written', async () => {
+    expect(await loadProfile()).toEqual(EMPTY_PROFILE);
+  });
+
+  // The keychain holds secrets; a name and a tone are not among them, so this
+  // is the ordinary store. Asserting the key is here to catch a silent change
+  // of storage that would strand every existing profile.
+  it('writes under the versioned key', async () => {
+    await saveProfile({ ...EMPTY_PROFILE, name: 'James' });
+
+    const raw = await AsyncStorage.getItem('profile.v1');
+    expect(raw).not.toBeNull();
+    expect(JSON.parse(raw as string)).toMatchObject({ name: 'James' });
+  });
+
+  // Signing out has to leave nothing for the next person to sign in and find.
+  it('leaves nothing behind when cleared', async () => {
+    await saveProfile({ ...EMPTY_PROFILE, name: 'James', onboardedAt: '2026-09-06T18:00:00.000Z' });
+    await clearProfile();
+
+    expect(await AsyncStorage.getItem('profile.v1')).toBeNull();
+    expect(await loadProfile()).toEqual(EMPTY_PROFILE);
+  });
+
+  it('survives a stored profile that is not valid JSON', async () => {
+    await AsyncStorage.setItem('profile.v1', 'not json at all');
 
     expect(await loadProfile()).toEqual(EMPTY_PROFILE);
-    expect(await AsyncStorage.getItem('profile.v1')).toBeNull();
   });
 });

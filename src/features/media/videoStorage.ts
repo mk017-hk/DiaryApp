@@ -93,6 +93,25 @@ export async function deleteRecording(entryId: string): Promise<void> {
   }
 }
 
+/**
+ * Removes every recording and poster on this device.
+ *
+ * Signing out and deleting an account both have to leave nothing behind. The
+ * whole directory goes rather than a file per entry: an entry whose row failed
+ * to save would otherwise leave its video sitting on disk with nothing left
+ * pointing at it, which is the one case where a leftover is most likely.
+ */
+export async function deleteAllRecordings(): Promise<void> {
+  for (const name of [VIDEO_DIR, POSTER_DIR]) {
+    try {
+      const dir = new Directory(Paths.document, name);
+      if (dir.exists) dir.delete();
+    } catch (error) {
+      logger.warn('Could not clear media', { error });
+    }
+  }
+}
+
 /** Whether the file an entry points at is still on disk. */
 export function recordingExists(uri: string | undefined): boolean {
   if (uri === undefined) return false;

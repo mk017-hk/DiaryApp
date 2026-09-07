@@ -3,6 +3,7 @@ import {
   createTestUser,
   createThread,
   deleteTestUser,
+  signUpTestUser,
   type TestUser,
 } from './helpers';
 
@@ -295,5 +296,110 @@ describe('private storage', () => {
 
     expect(error).toBeNull();
     expect(data?.signedUrl).toContain('token=');
+  });
+});
+
+/**
+ * The sign-up screen's own path.
+ *
+ * Everything above builds its users through the admin API, which no device can
+ * reach. These create an account exactly as the app does — anon key,
+ * `auth.signUp`, display name in user metadata — and then check that the new
+ * session is as boxed in as every other.
+ */
+describe('signing up the way the app does', () => {
+  let newcomer: Awaited<ReturnType<typeof signUpTestUser>>;
+
+  beforeAll(async () => {
+    newcomer = await signUpTestUser('nora');
+  });
+
+  afterAll(async () => {
+    await deleteTestUser(newcomer);
+  });
+
+  it('creates a profile carrying the name given at sign-up', async () => {
+    const { data, error } = await newcomer.client
+      .from('profiles')
+      .select('id, display_name')
+      .eq('id', newcomer.user.id)
+      .single();
+
+    expect(error).toBeNull();
+    expect(data?.display_name).toEqual('nora');
+  });
+
+  it('creates exactly one personal diary, owned by them', async () => {
+    const { data } = await newcomer.client.from('diaries').select('id, kind, owner_id');
+
+    expect(data).toHaveLength(1);
+    expect(data?.[0]?.kind).toEqual('personal');
+    expect(data?.[0]?.owner_id).toEqual(newcomer.user.id);
+  });
+
+  it('makes them the owner member of it', async () => {
+    const { data } = await newcomer.client
+      .from('diary_members')
+      .select('role')
+      .eq('diary_id', newcomer.diaryId);
+
+    expect(data).toHaveLength(1);
+    expect(data?.[0]?.role).toEqual('owner');
+  });
+
+  it('can write and read back an entry straight away', async () => {
+    const entryId = await createEntry(newcomer);
+    const { data, error } = await newcomer.client
+      .from('journal_entries')
+      .select('id')
+      .eq('id', entryId);
+
+    expect(error).toBeNull();
+    expect(data).toHaveLength(1);
+  });
+
+  // The point of the whole block: a session minted by the real sign-up path is
+  // no more privileged than one built by the harness.
+  it('cannot see anything of A’s', async () => {
+    const [entries, threads, diaries, profiles] = await Promise.all([
+      newcomer.client.from('journal_entries').select('id').eq('id', aliceEntryId),
+      newcomer.client.from('threads').select('id').eq('id', aliceThreadId),
+      newcomer.client.from('diaries').select('id').eq('id', alice.diaryId),
+      newcomer.client.from('profiles').select('id').eq('id', alice.user.id),
+    ]);
+
+    expect(entries.data).toEqual([]);
+    expect(threads.data).toEqual([]);
+    expect(diaries.data).toEqual([]);
+    expect(profiles.data).toEqual([]);
+  });
+
+  it('cannot write into A’s diary', async () => {
+    const { error } = await newcomer.client.from('journal_entries').insert({
+      diary_id: alice.diaryId,
+      author_id: newcomer.user.id,
+      body: 'Planted by a brand new account.',
+    });
+
+    expect(error).not.toBeNull();
+  });
+
+  // Signing out is the only way back to a locked device on a shared phone. If
+  // the session survived it, "sign out" would be a lie.
+  it('reaches nothing once signed out', async () => {
+    await newcomer.client.auth.signOut();
+
+    const { data } = await newcomer.client.from('journal_entries').select('id');
+    expect(data ?? []).toEqual([]);
+
+    // Signed back in, their own diary is still there.
+    const { error } = await newcomer.client.auth.signInWithPassword({
+      email: newcomer.email,
+      password: newcomer.password,
+    });
+    expect(error).toBeNull();
+
+    const { data: mine } = await newcomer.client.from('journal_entries').select('id');
+    expect((mine ?? []).length).toBeGreaterThan(0);
   });
 });

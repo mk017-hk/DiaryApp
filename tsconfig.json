@@ -33,5 +33,8 @@
     }
   },
   "include": ["**/*.ts", "**/*.tsx", ".expo/types/**/*.ts", "expo-env.d.ts"],
-  "exclude": ["node_modules", "dist", "build", ".expo"]
+  // Edge Functions are Deno, not React Native: different globals, different
+  // module resolution, and no overlap with this program. They are checked by
+  // `deno check` instead.
+  "exclude": ["node_modules", "dist", "build", ".expo", "supabase/functions"]
 }

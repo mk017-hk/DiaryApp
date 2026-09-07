@@ -79,9 +79,22 @@ export default function Today() {
         ]}
         showsVerticalScrollIndicator={false}
       >
-        <Text variant="caption" color="inkTertiary">
-          {longDate(today)}
-        </Text>
+        <View style={styles.header}>
+          <Text variant="caption" color="inkTertiary">
+            {longDate(today)}
+          </Text>
+          {/* The only way out of the diary and into settings. Deliberately
+              small: nothing on this screen should compete with the question. */}
+          <PressableScale
+            onPress={() => router.push('/account')}
+            haptic="light"
+            accessibilityLabel="Your account and settings"
+          >
+            <Text variant="caption" color="inkFaint">
+              You
+            </Text>
+          </PressableScale>
+        </View>
 
         <Animated.View entering={FadeInDown.duration(400)} style={styles.opening}>
           {/* The 'barely at all' tone returns nothing, and an empty line of
@@ -219,6 +232,7 @@ const styles = StyleSheet.create({
   actions: { gap: space.sm, marginTop: space.xl },
   blank: { maxWidth: 320 },
   content: { paddingRight: space.lg },
+  header: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
   memory: { gap: space.xxs, padding: space.md },
   opening: { gap: space.xs, marginTop: space.xs },
   row: { alignItems: 'center', flexDirection: 'row', gap: space.sm, paddingVertical: space.sm },

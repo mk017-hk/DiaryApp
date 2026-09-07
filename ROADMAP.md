@@ -32,9 +32,13 @@ that calls it. That decision holds up.
 Two things have moved since this was written. `prompts.ts` now varies by a tone
 the user picks at onboarding and by what they said they were here for — still a
 fixed pool, so the gap above stands unchanged, but the surface the assistant
-will speak through already exists. And profile persistence is deliberately off
-(`PERSIST_PROFILE` in `profileStore.ts`) while onboarding is being shaped, so
-the app starts fresh each launch. Turn it back on before Phase 1.
+will speak through already exists. And profile persistence, switched off while
+onboarding was being shaped, is back on: the app remembers you between
+launches, and signing out is what clears it.
+
+Phase 1 is done. Authentication, the `(public)` screens, the session gate and
+account deletion are built and tested — see the phase below for what changed
+along the way. Entries are still on the device; that is Phase 2.
 
 ---
 
@@ -72,7 +76,7 @@ down before anyone pays or deletes anything.
 
 ---
 
-## Phase 1: authentication
+## Phase 1: authentication ✅ done
 
 Unblocks everything. Nothing else in this document ships first.
 
@@ -90,6 +94,49 @@ Unblocks everything. Nothing else in this document ships first.
 
 **Done when** a new user signs up, gets a personal diary row, and the RLS suite
 still passes against a real session rather than a test helper.
+
+### What was built, and what changed on the way
+
+Auth repository at `src/services/supabase/auth.ts`, `SessionProvider`, the four
+`app/(public)/` screens, an account screen with sign out and deletion, and the
+`delete-account` Edge Function. 40 integration tests, 143 unit tests.
+
+Four decisions differ from the plan above, each for a reason:
+
+1. **Onboarding runs before sign-up, not after.** The plan implied credentials
+   first. But onboarding is where the app asks your name, and asking again on a
+   sign-up form two screens later is how an app tells you it is not paying
+   attention. So sign-up already knows who you are, and the name goes to the
+   `handle_new_user` trigger as user metadata.
+2. **The lock stayed the outermost gate**, with auth as a redirect inside the
+   navigator rather than a wrapper above it. Entries live on this device
+   whether or not a session is valid, so the device gate has to come first. The
+   principle the plan cared about — that the two answer different questions and
+   stay separate — is unchanged.
+3. **The Edge Function has no imports.** The Supabase SDK could not be resolved
+   from the local edge runtime, and rewriting it as plain `fetch` against the
+   same REST, Storage and Auth Admin endpoints turned out to be the better
+   design anyway: no module graph to resolve on a cold start.
+4. **The web session goes to `localStorage`.** `expo-secure-store` is
+   native-only, so on web every session write failed and was swallowed — the
+   app signed you in and forgot by the next reload. Web is a preview target
+   only; on iOS this is still the keychain.
+
+Two bugs surfaced that were not visible before this phase:
+
+- `createClient` throws on an empty URL, and it runs at import time. Any build
+  without `.env.local` would have crashed on launch the moment anything
+  imported the client. Unconfigured builds now get a placeholder URL and a
+  fetch that refuses, so the guard failing is loud rather than a timeout.
+- The deletion suite passed against a deliberately broken function that read a
+  user id from the request body — because the test never sent a body. Found by
+  mutating the function and watching the tests stay green. The test now
+  attempts the attack for real, and goes red without the fix.
+
+Still open from the plan: Apple sign-in is wired but cannot be verified until
+there is a development build, and `handle_new_user` firing for the Apple path
+is unconfirmed for the same reason. The trigger is on `auth.users` rather than
+on any provider path, so it should fire — but should is not tested.
 
 ---
 

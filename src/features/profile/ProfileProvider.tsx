@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import type { ReactNode } from 'react';
 
 import {
+  clearProfile,
   EMPTY_PROFILE,
   firstName,
   loadProfile,
@@ -27,6 +28,8 @@ interface ProfileContextValue {
     tone: ToneId;
     capture: CapturePreferenceId;
   }) => Promise<void>;
+  /** Fills an empty profile from the name on an account. See the provider. */
+  adoptAccountName: (name: string) => Promise<void>;
   reset: () => Promise<void>;
 }
 
@@ -68,9 +71,34 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
     [],
   );
 
+  /**
+   * Adopts the name on an account.
+   *
+   * Someone who signs in on a new phone has an account but nothing stored
+   * locally, and walking them back through "what should I call you?" when the
+   * app already knows would be absurd. The name from their account is enough
+   * to count as onboarded; the rest are preferences with sensible defaults
+   * they can change in Settings.
+   *
+   * Callers check `onboarded` first: a profile already on the device wins,
+   * because it holds choices this cannot recover.
+   */
+  const adoptAccountName = useCallback(async (name: string) => {
+    const trimmed = name.trim();
+    if (trimmed.length === 0) return;
+
+    const next: Profile = {
+      ...EMPTY_PROFILE,
+      name: trimmed,
+      onboardedAt: new Date().toISOString(),
+    };
+    setProfile(next);
+    await saveProfile(next);
+  }, []);
+
   const reset = useCallback(async () => {
     setProfile(EMPTY_PROFILE);
-    await saveProfile(EMPTY_PROFILE);
+    await clearProfile();
   }, []);
 
   const value = useMemo<ProfileContextValue>(
@@ -83,9 +111,10 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
       capture: profile.capture,
       onboarded: profile.onboardedAt !== null,
       completeOnboarding,
+      adoptAccountName,
       reset,
     }),
-    [profile, ready, completeOnboarding, reset],
+    [profile, ready, completeOnboarding, adoptAccountName, reset],
   );
 
   return <ProfileContext.Provider value={value}>{children}</ProfileContext.Provider>;

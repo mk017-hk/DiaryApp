@@ -5,6 +5,7 @@ import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 
 import { Button, Chip, DiaryPage, Field, PressableScale, Text } from '@/components';
 import { space, useTheme } from '@/design';
+import { useSession } from '@/features/auth';
 import { useProfile } from '@/features/profile';
 import {
   CAPTURE_PREFERENCES,
@@ -31,6 +32,7 @@ export default function Onboarding() {
   const router = useRouter();
   const theme = useTheme();
   const { completeOnboarding } = useProfile();
+  const { status } = useSession();
 
   const [step, setStep] = useState(0);
   const [name, setName] = useState('');
@@ -47,7 +49,11 @@ export default function Onboarding() {
   const finish = async () => {
     setSaving(true);
     await completeOnboarding({ name, intentions, tone, capture });
-    router.replace('/');
+
+    // Straight to sign-up, not to the welcome screen the guard would otherwise
+    // pick: they have just told us who they are, so "sign in or create an
+    // account?" is a question with an obvious answer.
+    router.replace(status === 'signed-out' ? '/sign-up' : '/');
   };
 
   const toneSample = TONES.find((option) => option.id === tone)?.sample ?? '';

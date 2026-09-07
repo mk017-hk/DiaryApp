@@ -16,19 +16,17 @@ import { logger } from '@/services/logger';
 const KEY = 'profile.v1';
 
 /**
- * Profile persistence, currently off.
+ * Profile persistence.
  *
- * While onboarding is still being shaped, the app starts fresh on every
- * launch so the flow can be walked through again and again without deleting
- * and reinstalling. Anything a previous build wrote is cleared on first load
- * rather than left behind as dead data.
+ * This was off while onboarding was being shaped, so the flow could be walked
+ * through on every launch without deleting and reinstalling. Onboarding has
+ * settled and authentication needs somewhere to keep a name, so it is on: the
+ * app now remembers you between launches, which is the point of it.
  *
- * Entries are unaffected — those still save, or there would be nothing to
- * test the diary with.
- *
- * Flip to true when onboarding settles.
+ * To walk onboarding again, sign out — that clears the profile with the
+ * session, which is the only honest way to do it once accounts exist.
  */
-const PERSIST_PROFILE = false;
+const PERSIST_PROFILE = true;
 
 /** What someone is here for. More than one can be true at once. */
 export const INTENTIONS = [

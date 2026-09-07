@@ -89,6 +89,53 @@ export async function createTestUser(label: string): Promise<TestUser> {
   return { user, client, diaryId: diaries[0]!.id as string };
 }
 
+/**
+ * Creates a user the way the app does: `auth.signUp` with the anon key.
+ *
+ * `createTestUser` above uses the admin API, which is convenient for fixtures
+ * but is not a path any device can take. This one exercises exactly what the
+ * sign-up screen calls, so the trigger, the metadata and the resulting session
+ * are all the real ones.
+ *
+ * Local config has email confirmations off, so a session comes back
+ * immediately. In production it would not, and the caller would wait for the
+ * confirmation link — the rows this asserts on are created by the trigger at
+ * insert time either way.
+ */
+export async function signUpTestUser(
+  displayName: string,
+): Promise<TestUser & { email: string; password: string }> {
+  const { apiUrl, anonKey } = localStack();
+
+  const email = `${displayName}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}@example.test`;
+  const password = 'test-password-9f3b2a';
+
+  const client = createClient(apiUrl, anonKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+
+  const { data, error } = await client.auth.signUp({
+    email,
+    password,
+    options: { data: { display_name: displayName } },
+  });
+  if (error !== null) throw error;
+
+  const user = data.user;
+  if (user === null) throw new Error('signUp returned no user');
+  if (data.session === null) {
+    throw new Error('signUp returned no session — is enable_confirmations on in config.toml?');
+  }
+
+  const { data: diaries, error: diaryError } = await client.from('diaries').select('id');
+  if (diaryError !== null) throw diaryError;
+  if (diaries === null || diaries.length !== 1) {
+    throw new Error(`expected exactly one personal diary, got ${String(diaries?.length)}`);
+  }
+
+  return { user, client, diaryId: diaries[0]!.id as string, email, password };
+}
+
 export async function deleteTestUser(testUser: TestUser): Promise<void> {
   await adminClient().auth.admin.deleteUser(testUser.user.id);
 }
