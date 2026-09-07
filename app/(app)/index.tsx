@@ -228,7 +228,9 @@ function EntryRow({ entry, onPress }: { entry: Entry; onPress: () => void }) {
     >
       {/* A still, never the clip. Streaming video to render a scrolling list
           is slow here and expensive once this is server-backed. */}
-      {entry.videoUri !== undefined && <VideoPoster posterUri={entry.posterUri} />}
+      {(entry.videoUri !== undefined || entry.remoteVideoPath !== undefined) && (
+        <VideoPoster posterUri={entry.posterUri} remotePath={entry.remotePosterPath} />
+      )}
 
       <View style={styles.rowText}>
         <Text variant="caption" color="inkTertiary">

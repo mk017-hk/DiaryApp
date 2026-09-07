@@ -53,7 +53,7 @@ describe('sending an entry', () => {
   // PostgREST only updates the columns present, so leaving these out preserves
   // whatever set them. Sending nulls would erase a thread on every sync.
   it('omits columns this app does not own', () => {
-    const row = toRow(entry, context) as Record<string, unknown>;
+    const row = toRow(entry, context) as unknown as Record<string, unknown>;
 
     expect(row).not.toHaveProperty('thread_id');
     expect(row).not.toHaveProperty('title');

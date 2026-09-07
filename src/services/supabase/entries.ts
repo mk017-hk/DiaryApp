@@ -36,6 +36,19 @@ interface EntryRow {
   updated_at: string;
 }
 
+/**
+ * A row as it comes back from a pull.
+ *
+ * Kept separate from what gets written: `entry_media` is embedded on read so
+ * one request answers "what changed?" and "where is the video?" together, but
+ * sending it back would be an excess column on an upsert. RLS applies to the
+ * embed exactly as it does to a direct select, so it cannot reach media in
+ * another diary.
+ */
+interface EntryRowWithMedia extends EntryRow {
+  entry_media?: { storage_path: string; poster_path: string | null; status: string }[];
+}
+
 // ---------------------------------------------------------------------------
 // Mapping
 // ---------------------------------------------------------------------------
@@ -51,12 +64,7 @@ interface EntryRow {
  * out rather than sent as null. PostgREST only updates the columns present, so
  * omitting them preserves whatever else has set them.
  */
-export function toRow(
-  entry: Entry,
-  context: SyncContext,
-): Omit<EntryRow, 'diary_id'> & {
-  diary_id: string;
-} {
+export function toRow(entry: Entry, context: SyncContext): EntryRow {
   return {
     id: entry.id,
     diary_id: context.diaryId,
@@ -80,7 +88,7 @@ export function toRow(
  * never overwritten by a pull — the media module deals in storage paths
  * instead, and a device that has the file keeps using the file.
  */
-export function fromRow(row: EntryRow): Entry {
+export function fromRow(row: EntryRowWithMedia): Entry {
   const entry: Entry = {
     id: row.id,
     entryDate: row.entry_date,
@@ -95,11 +103,27 @@ export function fromRow(row: EntryRow): Entry {
   };
 
   if (row.deleted_at !== null) entry.deletedAt = row.deleted_at;
+
+  // Only a finished upload counts. A `pending` row means the bytes may not be
+  // there yet, and pointing a second device at a half-written object gives it
+  // a broken player rather than an honest "not here yet".
+  const media = row.entry_media?.find((item) => item.status === 'uploaded');
+  if (media !== undefined) {
+    entry.remoteVideoPath = media.storage_path;
+    if (media.poster_path !== null) entry.remotePosterPath = media.poster_path;
+  }
+
   return entry;
 }
 
-const SELECT =
+const COLUMNS =
   'id, diary_id, author_id, body, entry_date, entry_at, mood, is_favourite, deleted_at, created_at, updated_at';
+
+/** The push writes only `journal_entries`, so it asks for nothing else back. */
+const SELECT = COLUMNS;
+
+/** The pull wants the media paths too, in the same round trip. */
+const SELECT_WITH_MEDIA = `${COLUMNS}, entry_media(storage_path, poster_path, status)`;
 
 // ---------------------------------------------------------------------------
 // Push
@@ -198,7 +222,7 @@ export async function pullEntries(
   try {
     let query = supabase
       .from('journal_entries')
-      .select(SELECT)
+      .select(SELECT_WITH_MEDIA)
       .eq('diary_id', context.diaryId)
       .order('updated_at', { ascending: true })
       .limit(limit);
@@ -208,7 +232,7 @@ export async function pullEntries(
     const { data, error } = await query;
     if (error !== null) return { ok: false, error: toAppError(error, 'pull entries') };
 
-    const rows = (data ?? []) as unknown as EntryRow[];
+    const rows = (data ?? []) as unknown as EntryRowWithMedia[];
     const entries = rows.map(fromRow);
     const watermark = rows.length === 0 ? null : (rows[rows.length - 1]?.updated_at ?? null);
 

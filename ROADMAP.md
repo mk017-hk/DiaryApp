@@ -15,9 +15,8 @@ Level Security and a 25 case two user isolation suite. App lock with PIN,
 biometrics and a privacy cover. Onboarding, Today, calendar, compose with video
 capture, entry detail, security screen. On This Day resurfacing.
 
-**Not built.** Authentication. Any network path for entries. Transcription. The
-assistant. Future Me. Sharing UI. Billing. Notifications. Timeline. Dashboard.
-Memory movies.
+**Not built.** Transcription. The assistant. Future Me. Sharing UI. Billing.
+Notifications. Timeline. Dashboard. Memory movies.
 
 **The honest gap.** `src/features/assistant/prompts.ts` is a fixed pool of
 sentences chosen by day of month. It has never read an entry. The line that
@@ -36,9 +35,11 @@ will speak through already exists. And profile persistence, switched off while
 onboarding was being shaped, is back on: the app remembers you between
 launches, and signing out is what clears it.
 
-Phase 1 is done. Authentication, the `(public)` screens, the session gate and
-account deletion are built and tested — see the phase below for what changed
-along the way. Entries are still on the device; that is Phase 2.
+Phases 1 and 2 are done. Authentication, the `(public)` screens, the session
+gate and account deletion; then entry sync, conflict resolution and media
+upload — see each phase below for what changed along the way. The device is
+still the authority for reads, which was always the intention rather than a
+staging post.
 
 ---
 
@@ -140,7 +141,7 @@ on any provider path, so it should fire — but should is not tested.
 
 ---
 
-## Phase 2: entries into Postgres
+## Phase 2: entries into Postgres ✅ done
 
 - New repository `src/services/supabase/entries.ts` with the same signatures as
   `entryStore.ts`.
@@ -158,6 +159,47 @@ on any provider path, so it should fire — but should is not tested.
 
 **Done when** an entry recorded in flight mode appears on a second device after
 signing in.
+
+### What was built, and what changed on the way
+
+`src/services/supabase/entries.ts` and `media.ts` as repositories, a sync
+engine in `src/features/entries/sync.ts` with the remote injected, a
+`SyncProvider` driving it on sign-in, foreground and after writes, and a
+migration for the conflict trigger. 185 unit tests, 62 integration tests.
+
+The done criterion is met, and tested twice: at the SQL level in
+`supabase/tests/entrySync.test.ts`, and through the real application in a
+browser — two contexts as two devices, one signs up and writes, the other signs
+in and sees it, deletes it, and it disappears from the first.
+
+**The schema needed a change that was not in this plan.** `set_updated_at`
+stamped `now()` on every write, which makes "last write wins on `body` if
+`updated_at` is respected" impossible to honour: the last device to _reconnect_
+would win rather than the last to _write_. Entries now have their own trigger
+that takes a client-supplied timestamp at its word and discards a stale one,
+returning the winning row so the losing device finds out in the same round trip.
+
+**Emotions are still not synced.** `entry_emotions` is a join table and nothing
+in the app sets emotions yet — the picker is Phase 3. Writing sync for a field
+no UI produces would be untested code pretending to be a feature, so the local
+shape carries `emotions` and the join table waits for the screen that fills it.
+
+Three bugs the tests caught, all mutation-checked:
+
+- Conflict resolution originally also asked whether the local row was still
+  queued, which let a pull undo an edit pushed seconds earlier — the pull bound
+  overlaps deliberately. It compares time alone now.
+- Adopting a remote row wiped `videoUri` and `posterUri`. The server has no
+  opinion about where a file sits on a particular phone, so the device that
+  recorded the video would have been the one to lose it.
+- The account-deletion suite from Phase 1 passed against a function that read a
+  user id from the request body, because the test never sent one. Fixed there;
+  the lesson applied here.
+
+**Not verified.** The upload itself streams off disk through a native module,
+so it needs a real device — the storage contract around it is tested against
+the real bucket, but `file.upload()` executing on a phone is not. Same standing
+as Sign in with Apple: correct as written, unproven until there is a build.
 
 ---
 

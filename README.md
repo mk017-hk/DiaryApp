@@ -14,8 +14,9 @@ npm start
 
 Then scan the QR code with Expo Go, or press `i` / `a` for a simulator.
 
-No Supabase credentials are needed yet. Entries are kept on the device until
-authentication lands, so the app runs end to end with no backend at all.
+Supabase credentials are optional. Without them the app detects it, keeps
+everything on the device and skips the sign-in screen — which is how it runs in
+Expo Go with no backend at all.
 
 ### Testing from an iPhone with no computer
 
@@ -73,7 +74,7 @@ before any real diary exists.
 npm run db:start     # local Postgres, Auth, Storage (needs Docker)
 npm run functions    # Edge Functions — needed by the deletion suite
 npm run db:types     # regenerate src/types/database.generated.ts
-npm run test:rls     # isolation + account deletion
+npm run test:rls     # isolation, deletion, sync and media
 npm run db:stop
 ```
 
@@ -94,6 +95,13 @@ query string. That last test exists because a deliberately broken version of
 the function, one that read a user id from the request body, passed the
 earlier version of the suite: it never sent a body. It does now.
 
+The **sync** half checks the SQL that conflict resolution assumes — that a
+client may date its own edit, that an older edit cannot overwrite a newer one
+however late it arrives, and that a deletion is something a second device can
+actually find out about. The **media** half checks the private bucket: nothing
+is reachable without a signed URL, only a member can mint one, and an
+interrupted upload leaves a row the reconciler can find.
+
 Entries belong to a **diary**, and diaries have **members**. A solo user has one
 personal diary, created on signup and invisible in the UI; a shared diary is the
 same row with a second member. Every policy asks "is the caller a member of this
@@ -113,7 +121,7 @@ policy on `diary_members` that queried `diary_members` would recurse forever.
 | `npm run format`       | Prettier write                               |
 | `npm test`             | Jest                                         |
 | `npm run functions`    | Serve Edge Functions locally                 |
-| `npm run test:rls`     | Isolation + deletion, against local Supabase |
+| `npm run test:rls`     | Integration suites, against local Supabase   |
 | `npm run verify`       | typecheck + lint + test — run before commit  |
 
 ## Project structure
@@ -182,6 +190,37 @@ Account deletion is built now rather than at submission. It lives in
 from the verified JWT and nothing else — and clears storage objects before
 the cascade removes the rows that name them.
 
+## Sync
+
+Entries are written to the device first and pushed afterwards. This is not a
+cache in front of Postgres — it is the other way round: the device is what
+screens read from, so capture never waits on a connection and an entry cannot
+be lost to a dropped signal.
+
+Ids are generated on the device, so the local row and the remote row are the
+same row from the moment it exists. Nothing is reconciled later, and an entry
+written in flight mode already knows its own name.
+
+A pass pushes, then pulls, then uploads media, and runs on sign-in, on
+foregrounding, and a debounced moment after any write.
+
+**Conflicts.** A push carries `updated_at` — when the edit was made, not when
+it arrived. The database keeps whichever is newer and, on a stale write,
+returns the row unchanged, so the losing device is handed the winner in the
+same round trip. The rule is a trigger (`set_entry_updated_at`) rather than
+client code, because a device can be wrong, out of date, or lying.
+
+**Deletes** leave a tombstone. Removing the row outright would leave nothing to
+tell the server, and the entry would come back on the next pull.
+
+**Media** goes to the private bucket, and the `entry_media` row is written
+_before_ the bytes are sent — an upload killed by a dead battery then leaves
+something `stale_pending_media` can find, rather than an object nobody knows
+about that is billed for forever. Uploads stream off disk rather than through
+`supabase.storage.upload`, which would want a hundred-megabyte clip in memory
+first. Reads go through signed URLs minted on demand, cached in memory for
+their lifetime and never written to disk.
+
 ## Security
 
 Journal entries are treated as highly sensitive throughout.
@@ -213,12 +252,11 @@ animation gated on the OS Reduce Motion setting.
 See [ROADMAP.md](ROADMAP.md) for the full build plan and where this sits in it.
 
 Built: design system, database schema with row level security, app lock,
-onboarding, the daily question, calendar, compose, entry detail, and
-authentication with account deletion.
+onboarding, the daily question, calendar, compose, entry detail, authentication
+with account deletion, and entry sync with media upload.
 
-Entries are still held on the device — the store in
-`src/features/entries/entryStore.ts` wears the same shape as the
-`journal_entries` table, so moving it to Supabase changes that file and nothing
-that calls it.
+Entries and recordings now reach the account and come back on another device.
+The device remains the authority — see [Sync](#sync).
 
-Next: entries into Postgres, then video capture with on-device transcription.
+Next: on-device transcription, which is what turns a recording into something
+the assistant can eventually read. That needs a development build.

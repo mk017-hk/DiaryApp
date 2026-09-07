@@ -2,7 +2,15 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import type { AppError } from '@/services/supabase/errors';
 
-import { applyRemote, markSynced, purgeEntries, unsyncedEntries, type Entry } from './entryStore';
+import {
+  applyRemote,
+  entriesNeedingUpload,
+  markMediaUploaded,
+  markSynced,
+  purgeEntries,
+  unsyncedEntries,
+  type Entry,
+} from './entryStore';
 
 /**
  * Getting the device and the server to agree.
@@ -32,9 +40,21 @@ export interface PullOutcome {
 
 export type RemoteResult<T> = { ok: true; value: T } | { ok: false; error: AppError };
 
+export interface UploadedMedia {
+  storagePath: string;
+  posterPath: string | null;
+}
+
 export interface SyncRemote {
   push(entries: Entry[]): Promise<RemoteResult<PushOutcome>>;
   pull(since: string | null): Promise<RemoteResult<PullOutcome>>;
+  /**
+   * Sends one entry's recording.
+   *
+   * Optional so the text path can be tested and reasoned about on its own —
+   * and so a build with no media pipeline is a smaller thing, not a broken one.
+   */
+  uploadMedia?(entry: Entry): Promise<RemoteResult<UploadedMedia>>;
 }
 
 export interface SyncReport {
@@ -43,6 +63,8 @@ export interface SyncReport {
   pulled: number;
   /** Tombstones dropped: confirmed by the server, or deleted on another device. */
   removed: number;
+  /** Recordings that reached the bucket this pass. */
+  uploaded: number;
   error?: AppError;
 }
 
@@ -101,7 +123,9 @@ export async function syncEntries(
   remote: SyncRemote,
   options: SyncOptions = {},
 ): Promise<SyncReport> {
-  if (inFlight !== null) return { status: 'busy', pushed: 0, pulled: 0, removed: 0 };
+  if (inFlight !== null) {
+    return { status: 'busy', pushed: 0, pulled: 0, removed: 0, uploaded: 0 };
+  }
 
   inFlight = runSync(remote, options).finally(() => {
     inFlight = null;
@@ -113,6 +137,7 @@ export async function syncEntries(
 async function runSync(remote: SyncRemote, options: SyncOptions): Promise<SyncReport> {
   let pushed = 0;
   let removed = 0;
+  let uploaded = 0;
 
   // --- push ---------------------------------------------------------------
   const queued = await unsyncedEntries();
@@ -122,7 +147,14 @@ async function runSync(remote: SyncRemote, options: SyncOptions): Promise<SyncRe
     if (!result.ok) {
       // Everything stays queued. Being offline is not a failure to report at
       // the user; it is Tuesday.
-      return { status: 'failed', pushed: 0, pulled: 0, removed: 0, error: result.error };
+      return {
+        status: 'failed',
+        pushed: 0,
+        pulled: 0,
+        removed: 0,
+        uploaded: 0,
+        error: result.error,
+      };
     }
 
     // Adopt what the server settled on. For a push that lost to a newer edit
@@ -144,7 +176,7 @@ async function runSync(remote: SyncRemote, options: SyncOptions): Promise<SyncRe
   const pull = await remote.pull(since);
 
   if (!pull.ok) {
-    return { status: 'failed', pushed, pulled: 0, removed, error: pull.error };
+    return { status: 'failed', pushed, pulled: 0, removed, uploaded, error: pull.error };
   }
 
   const { entries, watermark } = pull.value;
@@ -167,7 +199,41 @@ async function runSync(remote: SyncRemote, options: SyncOptions): Promise<SyncRe
   // describes have landed would skip them forever on the next pass.
   if (watermark !== null) await writeWatermark(watermark);
 
-  return { status: 'ok', pushed, pulled: entries.length, removed };
+  // --- media --------------------------------------------------------------
+
+  // After the rows, never before: `entry_media` has a composite foreign key on
+  // (entry_id, diary_id), so the entry has to exist server-side or the media
+  // row is rejected. Uploading first would also mean bytes in the bucket with
+  // nothing pointing at them.
+  uploaded = await uploadPendingMedia(remote);
+
+  return { status: 'ok', pushed, pulled: entries.length, removed, uploaded };
+}
+
+/**
+ * Sends recordings that are still only on this phone.
+ *
+ * One at a time and deliberately not in parallel: these are hundred-megabyte
+ * files on a mobile connection, and three at once is how you get three
+ * timeouts instead of one success. A failure stops the pass rather than
+ * grinding through the rest — whatever went wrong for the first will almost
+ * certainly go wrong for the second, and the queue keeps until next time.
+ */
+async function uploadPendingMedia(remote: SyncRemote): Promise<number> {
+  if (remote.uploadMedia === undefined) return 0;
+
+  const waiting = await entriesNeedingUpload();
+  let uploaded = 0;
+
+  for (const entry of waiting) {
+    const result = await remote.uploadMedia(entry);
+    if (!result.ok) break;
+
+    await markMediaUploaded(entry.id, result.value);
+    uploaded += 1;
+  }
+
+  return uploaded;
 }
 
 /** Test seam: clears the in-flight guard between cases. */

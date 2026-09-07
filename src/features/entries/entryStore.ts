@@ -39,6 +39,18 @@ export interface Entry {
   posterUri?: string;
   /** What was said, once transcription exists. Separate from the note. */
   transcript?: string;
+
+  /**
+   * Where the recording lives in the bucket.
+   *
+   * How a second device plays a video it never recorded: it has no file, so it
+   * mints a signed URL from this instead. Bookkeeping about a remote fact,
+   * kept here because this is where the entry is — never sent to the server,
+   * which already knows.
+   */
+  remoteVideoPath?: string;
+  remotePosterPath?: string;
+
   isFavourite: boolean;
   createdAt: string;
   updatedAt: string;
@@ -268,11 +280,53 @@ export async function applyRemote(incoming: Entry[]): Promise<void> {
       ...(local?.transcript !== undefined && remote.transcript === undefined
         ? { transcript: local.transcript }
         : {}),
+      // The server does know these, so it wins where it has an opinion.
+      ...(remote.remoteVideoPath === undefined && local?.remoteVideoPath !== undefined
+        ? { remoteVideoPath: local.remoteVideoPath }
+        : {}),
+      ...(remote.remotePosterPath === undefined && local?.remotePosterPath !== undefined
+        ? { remotePosterPath: local.remotePosterPath }
+        : {}),
       unsynced: false,
     });
   }
 
   await writeAll([...byId.values()]);
+}
+
+/**
+ * Records where an entry's recording ended up in the bucket.
+ *
+ * Deliberately does not touch `updatedAt` or mark the entry unsynced. These
+ * paths live in `entry_media`, not on the entry, so the server has nothing to
+ * learn here — and bumping the timestamp would push a no-op edit that could
+ * beat a real edit made on another device.
+ */
+export async function markMediaUploaded(
+  id: string,
+  paths: { storagePath: string; posterPath: string | null },
+): Promise<void> {
+  const entries = await readAll();
+  const index = entries.findIndex((entry) => entry.id === id);
+  if (index === -1) return;
+
+  entries[index] = {
+    ...entries[index]!,
+    remoteVideoPath: paths.storagePath,
+    ...(paths.posterPath !== null ? { remotePosterPath: paths.posterPath } : {}),
+  };
+
+  await writeAll(entries);
+}
+
+/** Entries whose recording is still only on this phone. */
+export async function entriesNeedingUpload(): Promise<Entry[]> {
+  return (await readAll()).filter(
+    (entry) =>
+      entry.deletedAt === undefined &&
+      entry.videoUri !== undefined &&
+      entry.remoteVideoPath === undefined,
+  );
 }
 
 /** Marks rows the server has accepted, so they stop being pushed. */

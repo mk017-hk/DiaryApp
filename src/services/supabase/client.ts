@@ -31,6 +31,18 @@ const supabaseAnonKey = extra.supabaseAnonKey ?? '';
 
 export const isSupabaseConfigured = supabaseUrl !== '' && supabaseAnonKey !== '';
 
+/**
+ * The project URL and anon key, for the one thing the SDK cannot do well.
+ *
+ * Uploading a video means streaming a file off disk. The storage client wants
+ * the bytes in memory first, which for a two-minute clip is a hundred-odd
+ * megabytes of JavaScript heap on a phone — so the media module posts to the
+ * storage endpoint directly and lets the native layer stream it. It still
+ * needs somewhere to post to, and the caller's own token.
+ */
+export const projectUrl = supabaseUrl;
+export const publishableKey = supabaseAnonKey;
+
 if (!isSupabaseConfigured) {
   // Deliberately not thrown. Throwing here would take down every screen at
   // import time, including ones that need no backend at all. Surfaces that do

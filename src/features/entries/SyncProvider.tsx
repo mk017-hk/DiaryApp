@@ -13,14 +13,20 @@ import { AppState } from 'react-native';
 import { useSession } from '@/features/auth';
 import { deleteRecording } from '@/features/media';
 import { logger } from '@/services/logger';
+import { AppError } from '@/services/supabase/errors';
 import {
   personalDiaryId,
   pullEntries,
   pushEntries,
   type SyncContext,
 } from '@/services/supabase/entries';
+import {
+  forgetSignedUrls,
+  reconcilePendingMedia,
+  uploadRecording,
+} from '@/services/supabase/media';
 
-import { subscribeToEntries, unsyncedEntries } from './entryStore';
+import { allEntries, subscribeToEntries, unsyncedEntries } from './entryStore';
 import { resetSyncState, syncEntries, type SyncRemote, type SyncReport } from './sync';
 
 /**
@@ -56,6 +62,13 @@ function remoteFor(context: SyncContext): SyncRemote {
   return {
     push: (entries) => pushEntries(entries, context),
     pull: (since) => pullEntries(since, context),
+    uploadMedia: (entry) =>
+      entry.videoUri === undefined
+        ? Promise.resolve({
+            ok: false as const,
+            error: new AppError('not_found', 'That recording is no longer on this device.'),
+          })
+        : uploadRecording(entry.id, entry.videoUri, entry.posterUri, context),
   };
 }
 
@@ -108,7 +121,10 @@ export function SyncProvider({ children }: { children: ReactNode }) {
 
     // The next person to sign in on this phone must not inherit a watermark
     // from someone else's diary, or their first pull would skip everything
-    // written before it.
+    // written before it. Signed URLs go too: they stay valid until they
+    // expire, and one left in a live process outlives the session it came
+    // from.
+    forgetSignedUrls();
     void resetSyncState();
   }, [status]);
 
@@ -141,7 +157,22 @@ export function SyncProvider({ children }: { children: ReactNode }) {
   // On sign-in, and once the diary is known.
   useEffect(() => {
     if (diaryId === null) return;
-    void syncNow();
+
+    void (async () => {
+      await syncNow();
+
+      // Then tidy up after any upload that died mid-flight — a recording made
+      // and then backgrounded, or a battery that gave out. Once per session
+      // rather than every pass: it is a scan, and nothing about it is urgent.
+      const context = contextRef.current;
+      if (context === null) return;
+
+      const onDevice = new Map(
+        (await allEntries()).map((entry) => [entry.id, entry.videoUri] as const),
+      );
+
+      await reconcilePendingMedia(context, (entryId) => onDevice.get(entryId));
+    })();
   }, [diaryId, syncNow]);
 
   // On coming back to the front. A phone that has been in a pocket all day is

@@ -108,9 +108,11 @@ export default function EntryDetail() {
           </Text>
         </View>
 
-        {entry.videoUri !== undefined && (
+        {/* Either half is enough to show a player: this phone has the file, or
+            the account has it and a signed URL will fetch it. */}
+        {(entry.videoUri !== undefined || entry.remoteVideoPath !== undefined) && (
           <View style={styles.videoNote}>
-            <VideoNote uri={entry.videoUri} />
+            <VideoNote uri={entry.videoUri} remotePath={entry.remoteVideoPath} />
           </View>
         )}
 

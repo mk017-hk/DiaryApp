@@ -1,14 +1,16 @@
 import { useVideoPlayer, VideoView } from 'expo-video';
-import { useState } from 'react';
 import { Image, StyleSheet, View } from 'react-native';
 
-import { PressableScale, Text } from '@/components';
+import { PressableScale, Skeleton, Text } from '@/components';
 import { useTheme } from '@/design';
 
-import { recordingExists } from './videoStorage';
+import { useMediaSource } from './useMediaSource';
 
 interface VideoNoteProps {
-  uri: string;
+  /** The file on this device, if this is the phone that recorded it. */
+  uri?: string | undefined;
+  /** Where it lives in the bucket, for every other device. */
+  remotePath?: string | undefined;
 }
 
 /**
@@ -18,16 +20,20 @@ interface VideoNoteProps {
  * memory should be something you choose, not something that begins talking at
  * you — particularly if someone else is in the room.
  */
-export function VideoNote({ uri }: VideoNoteProps) {
+export function VideoNote({ uri, remotePath }: VideoNoteProps) {
   const theme = useTheme();
-  const [available] = useState(() => recordingExists(uri));
+  const source = useMediaSource(uri, remotePath);
 
-  const player = useVideoPlayer(available ? uri : null, (instance) => {
+  const player = useVideoPlayer(source.state === 'ready' ? source.uri : null, (instance) => {
     instance.loop = false;
     instance.muted = false;
   });
 
-  if (!available) {
+  if (source.state === 'resolving') {
+    return <Skeleton style={[styles.frame, { borderRadius: theme.radius.lg }]} />;
+  }
+
+  if (source.state === 'unavailable') {
     return (
       <View
         style={[
@@ -36,7 +42,7 @@ export function VideoNote({ uri }: VideoNoteProps) {
         ]}
       >
         <Text variant="callout" color="inkSecondary" align="center">
-          This recording is no longer on this device.
+          This recording is not on this device, and we could not reach your account to fetch it.
         </Text>
       </View>
     );
@@ -63,17 +69,25 @@ export function VideoNote({ uri }: VideoNoteProps) {
  */
 export function VideoPoster({
   posterUri,
+  remotePath,
   onPress,
   label = 'Play recording',
 }: {
   posterUri?: string | undefined;
+  remotePath?: string | undefined;
   onPress?: () => void;
   label?: string;
 }) {
   const theme = useTheme();
+  const source = useMediaSource(posterUri, remotePath);
+
+  // The placeholder covers both "no still was ever made" and "still fetching
+  // one". A row in a list is the wrong place for a spinner: it would make a
+  // quiet timeline flicker every time it scrolled past.
+  const resolved = source.state === 'ready' ? source.uri : undefined;
 
   const content =
-    posterUri === undefined ? (
+    resolved === undefined ? (
       <View
         style={[
           styles.poster,
@@ -84,7 +98,7 @@ export function VideoPoster({
       </View>
     ) : (
       <Image
-        source={{ uri: posterUri }}
+        source={{ uri: resolved }}
         style={[styles.poster, { borderRadius: theme.radius.md }]}
         accessibilityIgnoresInvertColors
       />
