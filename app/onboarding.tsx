@@ -46,9 +46,15 @@ export default function Onboarding() {
       current.includes(id) ? current.filter((value) => value !== id) : [...current, id],
     );
 
-  const finish = async () => {
+  const finish = async (assistantAllowed: boolean) => {
     setSaving(true);
-    await completeOnboarding({ name, intentions, tone, capture });
+
+    // The answer is held on the device, not sent. Onboarding runs before
+    // sign-up, so there is no session yet and an update keyed on auth.uid()
+    // would match nothing and vanish silently — which it did, until a browser
+    // run showed ai_consented_at still null after somebody had said yes.
+    // `PendingConsent` applies it the moment an account exists.
+    await completeOnboarding({ name, intentions, tone, capture, assistantConsent: assistantAllowed });
 
     // Straight to sign-up, not to the welcome screen the guard would otherwise
     // pick: they have just told us who they are, so "sign in or create an
@@ -195,12 +201,40 @@ export default function Onboarding() {
               </View>
 
               <View style={styles.actions}>
+                <Button label="Continue" onPress={() => setStep(5)} fullWidth />
+              </View>
+            </Animated.View>
+          )}
+
+          {step === 5 && (
+            <Animated.View entering={FadeInDown.duration(400)} style={styles.step}>
+              <Text variant="title1">One thing to decide.</Text>
+              <Text variant="callout" color="inkSecondary">
+                To ask you better questions over time, I would read what you write. Only the words —
+                never your video or your voice — and only ever to ask, never to judge.
+              </Text>
+              <Text variant="callout" color="inkSecondary">
+                Any single entry can be held back, and any thread can be marked private and skipped
+                entirely. You can change this whenever you like.
+              </Text>
+
+              <View style={styles.actions}>
                 <Button
-                  label="Start my diary"
-                  onPress={() => void finish()}
+                  label="Yes, read what I write"
+                  onPress={() => void finish(true)}
                   loading={saving}
                   fullWidth
                 />
+                <PressableScale
+                  onPress={() => void finish(false)}
+                  haptic="light"
+                  accessibilityLabel="Keep it to yourself for now"
+                  style={styles.skip}
+                >
+                  <Text variant="caption" color="inkTertiary">
+                    Not for now — just keep my diary
+                  </Text>
+                </PressableScale>
               </View>
             </Animated.View>
           )}
@@ -208,7 +242,7 @@ export default function Onboarding() {
 
         {step > 0 && (
           <View style={[styles.progress, { paddingHorizontal: theme.screenPadding }]}>
-            {[1, 2, 3, 4].map((index) => (
+            {[1, 2, 3, 4, 5].map((index) => (
               <View
                 key={index}
                 style={[

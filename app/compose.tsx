@@ -48,6 +48,7 @@ export default function Compose() {
   const [mood, setMood] = useState<number | null>(null);
   const [emotions, setEmotions] = useState<string[]>([]);
   const [threadId, setThreadId] = useState<string | undefined>(undefined);
+  const [aiExcluded, setAiExcluded] = useState(false);
   const [saving, setSaving] = useState(false);
 
   // Read once. A screen open past midnight must not silently change which day
@@ -70,6 +71,7 @@ export default function Compose() {
       mood,
       emotions,
       ...(threadId !== undefined ? { threadId } : {}),
+      ...(aiExcluded ? { aiExcluded: true } : {}),
       ...(videoUri !== null ? { videoUri } : {}),
       isFavourite: false,
     });
@@ -187,6 +189,27 @@ export default function Compose() {
           <EmotionPicker selected={emotions} onChange={setEmotions} />
 
           <ThreadPicker selected={threadId} onChange={setThreadId} />
+
+          {/* Offered at the moment it matters, in plain words. One difficult
+              entry inside an otherwise ordinary week should be holdable back
+              without having to mark the whole story private. */}
+          <PressableScale
+            onPress={() => setAiExcluded(!aiExcluded)}
+            haptic="selection"
+            accessibilityLabel="Keep this one to yourself"
+            accessibilityState={{ checked: aiExcluded }}
+            style={[
+              styles.exclude,
+              {
+                backgroundColor: aiExcluded ? theme.colors.accentWash : 'transparent',
+                borderRadius: theme.radius.md,
+              },
+            ]}
+          >
+            <Text variant="caption" color={aiExcluded ? 'accent' : 'inkTertiary'}>
+              {aiExcluded ? '✓ ' : ''}Keep this one to yourself — never read, never asked about
+            </Text>
+          </PressableScale>
         </ScrollView>
 
         <View style={[styles.footer, { paddingBottom: insets.bottom + space.md }]}>
@@ -303,6 +326,12 @@ const styles = StyleSheet.create({
   cameraTop: { left: space.lg, position: 'absolute', top: 0 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: space.xs },
   close: { padding: space.xxs },
+  exclude: {
+    alignSelf: 'flex-start',
+    marginTop: space.lg,
+    paddingHorizontal: space.sm,
+    paddingVertical: space.xs,
+  },
   content: { paddingBottom: space.xxl, paddingRight: space.lg },
   fill: { flex: 1 },
   footer: { gap: space.xs, paddingHorizontal: space.lg, paddingRight: space.lg },

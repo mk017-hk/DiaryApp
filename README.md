@@ -74,7 +74,7 @@ before any real diary exists.
 npm run db:start     # local Postgres, Auth, Storage (needs Docker)
 npm run functions    # Edge Functions — needed by the deletion suite
 npm run db:types     # regenerate src/types/database.generated.ts
-npm run test:rls     # isolation, deletion, sync and media
+npm run test:rls     # isolation, deletion, sync, media, threads, assistant
 npm run db:stop
 ```
 
@@ -220,6 +220,43 @@ about that is billed for forever. Uploads stream off disk rather than through
 `supabase.storage.upload`, which would want a hundred-megabyte clip in memory
 first. Reads go through signed URLs minted on demand, cached in memory for
 their lifetime and never written to disk.
+
+## The assistant
+
+The product, and the part with the most rules.
+
+**It runs server-side only.** `supabase/functions/assistant/` assembles the
+context, calls the model and records the result. No provider key ever reaches
+the app.
+
+**What it may read is decided in SQL**, not in the Edge Function and certainly
+not in the client. `assistant_context` excludes private threads, `ai_excluded`
+entries, deleted entries, and everything belonging to a profile that has not
+consented. It is `SECURITY INVOKER` and the function calls it with the
+_caller's own token_, so the assistant literally cannot read more of somebody's
+diary than they can. The service role appears once, to write the message —
+never to read diary content.
+
+**Only text goes to the model.** No media, no storage paths, no ids, no email.
+
+**The copy rules are enforced, not requested.** `prompt.ts` holds both the
+system prompt and a filter that reads the reply back: anything that counts
+days, mentions a gap, praises consistency, diagnoses, advises, evaluates or
+names the mechanism becomes silence instead. A day with no question is a
+completely acceptable day in a diary; a day where somebody grieving is told
+they have missed four days is not. `supabase/tests/assistantCopy.test.ts` is
+the list, in the phrasings a model actually produces.
+
+**Crisis has a defined response.** If the writing describes self-harm, abuse
+or a crisis, the model returns a sentinel, no question is stored, and the app
+shows `/support` — real numbers, no counselling attempted.
+
+**`based_on_entry_ids` is the honesty feature.** Every question records which
+entries it was drawn from, and Today lets you open any of them.
+
+Consent is asked during onboarding, in plain words, and can be changed in
+Settings. Enabled-by-default is not consent: `ai_enabled` defaults to true, so
+both it _and_ `ai_consented_at` must be set before anything is assembled.
 
 ## Security
 

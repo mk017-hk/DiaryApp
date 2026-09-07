@@ -8,6 +8,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { ThemeProvider, fontAssets, useTheme } from '@/design';
 import { SessionProvider, useSession } from '@/features/auth';
+import { PendingConsent } from '@/features/assistant';
 import { SyncProvider } from '@/features/entries';
 import { LockGate, LockProvider } from '@/features/lock';
 import { ProfileProvider, useProfile } from '@/features/profile';
@@ -48,6 +49,9 @@ export default function RootLayout() {
                       locked would be work nobody asked for, on a phone that
                       may not be in its owner's hands. */}
                   <SyncProvider>
+                    {/* Renders nothing. Delivers the answer onboarding took
+                        before there was an account to record it against. */}
+                    <PendingConsent />
                     <ThemedStack />
                   </SyncProvider>
                 </LockGate>
@@ -132,6 +136,7 @@ function ThemedStack() {
         <Stack.Screen name="thread/[id]" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="account" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="security" options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="support" options={{ animation: 'slide_from_right' }} />
       </Stack>
     </>
   );

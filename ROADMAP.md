@@ -203,7 +203,18 @@ as Sign in with Apple: correct as written, unproven until there is a build.
 
 ---
 
-## Phase 3: the rest of capture
+## Phase 3: the rest of capture — partly done
+
+**Done:** mood and emotion selection at capture (with `entry_emotions` sync),
+and thread assignment at capture, plus a thread screen and private threads.
+**Not done:** voice notes and photos, which reuse the Phase 5 media pipeline
+and are the smaller half.
+
+A schema bug surfaced here: `on delete set null` on the composite thread key
+nulled `diary_id` too, which is NOT NULL, so deleting a thread with entries in
+it failed outright. Fixed with a column list on SET NULL.
+
+### Original plan
 
 The notes list text, voice notes, video diaries and photos. Video exists.
 
@@ -235,7 +246,34 @@ background work all need a development build, so plan the whole move here.
 
 ---
 
-## Phase 5: the assistant
+## Phase 5: the assistant — server side done
+
+**Done:** `assistant_context` and `assistant_allowed` in SQL with every
+exclusion rule; the `assistant` Edge Function reading as the caller rather than
+the service role; the copy-rule filter; consent at onboarding and in Settings;
+`ai_excluded` at capture; the `/support` screen; the Today surface with
+`based_on_entry_ids` openable.
+
+**Not done:** the model call itself has never run — there is no provider key in
+local development, and the function deliberately reports how much context it
+assembled and stops there. Everything up to that line is tested. Thread
+follow-up as a distinct surface is also not built; the context function already
+reaches back through open threads, so it is a prompt and a screen rather than
+new plumbing.
+
+Two bugs found by driving the real app in a browser and then reading the
+profile row straight out of Postgres:
+
+- Consent given at onboarding was silently lost. Onboarding runs before
+  sign-up, so `set_assistant_consent` updated the row matching `auth.uid()` —
+  and with no session, matched nothing. The answer is now held on the device
+  and delivered once an account exists.
+- Because `ai_enabled` defaults to true, the Settings screen said "On" while
+  `assistant_allowed()` was returning false the whole time. A toggle that lies
+  about whether something reads your diary is worse than no toggle. It now
+  reports both halves.
+
+### Original plan
 
 The product. Everything before this was scaffolding.
 

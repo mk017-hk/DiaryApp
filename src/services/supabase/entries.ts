@@ -28,6 +28,7 @@ interface EntryRow {
   diary_id: string;
   author_id: string;
   thread_id: string | null;
+  ai_excluded: boolean;
   body: string | null;
   entry_date: string;
   entry_at: string;
@@ -73,6 +74,7 @@ export function toRow(entry: Entry, context: SyncContext): EntryRow {
     diary_id: context.diaryId,
     author_id: context.userId,
     thread_id: entry.threadId ?? null,
+    ai_excluded: entry.aiExcluded ?? false,
     body: entry.body,
     entry_date: entry.entryDate,
     entry_at: entry.entryAt,
@@ -112,6 +114,7 @@ export function fromRow(row: EntryRowWithMedia, slugById?: Map<string, string>):
 
   if (row.deleted_at !== null) entry.deletedAt = row.deleted_at;
   if (row.thread_id !== null) entry.threadId = row.thread_id;
+  if (row.ai_excluded) entry.aiExcluded = true;
 
   if (row.entry_emotions !== undefined && slugById !== undefined) {
     entry.emotions = row.entry_emotions
@@ -132,7 +135,7 @@ export function fromRow(row: EntryRowWithMedia, slugById?: Map<string, string>):
 }
 
 const COLUMNS =
-  'id, diary_id, author_id, thread_id, body, entry_date, entry_at, mood, is_favourite, deleted_at, created_at, updated_at';
+  'id, diary_id, author_id, thread_id, ai_excluded, body, entry_date, entry_at, mood, is_favourite, deleted_at, created_at, updated_at';
 
 /** The push writes only `journal_entries`, so it asks for nothing else back. */
 const SELECT = COLUMNS;

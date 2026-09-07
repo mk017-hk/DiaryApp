@@ -50,6 +50,16 @@ export interface Entry {
   threadId?: string;
 
   /**
+   * Held back from the assistant, on its own.
+   *
+   * Separate from a private thread: one difficult entry inside an otherwise
+   * ordinary story should be excludable without hiding the story. Enforced
+   * server-side in `assistant_context`; this is the copy of the flag the
+   * screens set.
+   */
+  aiExcluded?: boolean;
+
+  /**
    * Where the recording lives in the bucket.
    *
    * How a second device plays a video it never recorded: it has no file, so it

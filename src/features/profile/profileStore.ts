@@ -61,6 +61,15 @@ export type CapturePreferenceId = (typeof CAPTURE_PREFERENCES)[number]['id'];
 
 export interface Profile {
   name: string;
+  /**
+   * What they answered when asked about the assistant, before there was an
+   * account to record it against.
+   *
+   * Onboarding runs before sign-up, so the answer has nowhere server-side to
+   * go at the moment it is given. Held here and applied on first sign-in.
+   * Undefined means not asked yet, which is not the same as no.
+   */
+  assistantConsent?: boolean;
   intentions: IntentionId[];
   tone: ToneId;
   capture: CapturePreferenceId;
@@ -111,6 +120,9 @@ function migrate(parsed: Record<string, unknown>): Profile {
       typeof parsed.capture === 'string' && CAPTURE_IDS.has(parsed.capture)
         ? (parsed.capture as CapturePreferenceId)
         : 'either',
+    ...(typeof parsed.assistantConsent === 'boolean'
+      ? { assistantConsent: parsed.assistantConsent }
+      : {}),
     onboardedAt: typeof parsed.onboardedAt === 'string' ? parsed.onboardedAt : null,
   };
 }

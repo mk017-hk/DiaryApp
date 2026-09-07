@@ -27,7 +27,10 @@ interface ProfileContextValue {
     intentions: IntentionId[];
     tone: ToneId;
     capture: CapturePreferenceId;
+    assistantConsent: boolean;
   }) => Promise<void>;
+  /** Clears the held answer once it has reached the account. */
+  clearPendingConsent: () => Promise<void>;
   /** Fills an empty profile from the name on an account. See the provider. */
   adoptAccountName: (name: string) => Promise<void>;
   reset: () => Promise<void>;
@@ -57,12 +60,14 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
       intentions: IntentionId[];
       tone: ToneId;
       capture: CapturePreferenceId;
+      assistantConsent: boolean;
     }) => {
       const next: Profile = {
         name: input.name.trim(),
         intentions: input.intentions,
         tone: input.tone,
         capture: input.capture,
+        assistantConsent: input.assistantConsent,
         onboardedAt: new Date().toISOString(),
       };
       setProfile(next);
@@ -96,6 +101,14 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
     await saveProfile(next);
   }, []);
 
+  const clearPendingConsent = useCallback(async () => {
+    setProfile((current) => {
+      const { assistantConsent: _answered, ...rest } = current;
+      void saveProfile(rest);
+      return rest;
+    });
+  }, []);
+
   const reset = useCallback(async () => {
     setProfile(EMPTY_PROFILE);
     await clearProfile();
@@ -112,9 +125,10 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
       onboarded: profile.onboardedAt !== null,
       completeOnboarding,
       adoptAccountName,
+      clearPendingConsent,
       reset,
     }),
-    [profile, ready, completeOnboarding, adoptAccountName, reset],
+    [profile, ready, completeOnboarding, adoptAccountName, clearPendingConsent, reset],
   );
 
   return <ProfileContext.Provider value={value}>{children}</ProfileContext.Provider>;

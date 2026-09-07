@@ -5,6 +5,7 @@ import { Alert, StyleSheet, View } from 'react-native';
 import { Button, Divider, Field, Screen, Text } from '@/components';
 import { space } from '@/design';
 import { AuthNotice, useSession } from '@/features/auth';
+import { AssistantConsent } from '@/features/assistant';
 import { clearEntries, clearThreads, useSync } from '@/features/entries';
 import { deleteAllRecordings } from '@/features/media';
 import { useProfile } from '@/features/profile';
@@ -127,6 +128,18 @@ export default function Account() {
           label="App lock"
           variant="secondary"
           onPress={() => router.push('/security')}
+          fullWidth
+        />
+
+        {status === 'signed-in' && <AssistantConsent />}
+
+        <Divider />
+
+        {/* Never more than one tap away, and never behind anything. */}
+        <Button
+          label="If you need someone"
+          variant="secondary"
+          onPress={() => router.push('/support')}
           fullWidth
         />
 

@@ -6,7 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Button, DiaryPage, PressableScale, Text } from '@/components';
 import { space, useTheme } from '@/design';
-import { dailyPrompt, personalGreeting } from '@/features/assistant/prompts';
+import { AssistantQuestion, dailyPrompt, personalGreeting } from '@/features/assistant';
 import {
   listEntries,
   onThisDay,
@@ -132,9 +132,10 @@ export default function Today() {
               {personalGreeting(name, tone, today)}
             </Text>
           )}
-          <Text variant="display" lineHeight={46}>
-            {question}
-          </Text>
+          {/* The assistant's own question when there is one, and the
+              templated pool when there is not — which is most days, and is
+              not a failure state. */}
+          <AssistantQuestion fallback={question} />
         </Animated.View>
 
         <View style={styles.actions}>

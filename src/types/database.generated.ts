@@ -475,8 +475,23 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      assistant_allowed: { Args: { for_user?: string }; Returns: boolean }
+      assistant_context: {
+        Args: { max_entries?: number; window_days?: number }
+        Returns: {
+          body: string
+          diary_id: string
+          entry_date: string
+          entry_id: string
+          mood: number
+          thread_id: string
+          thread_title: string
+          transcript: string
+        }[]
+      }
       is_diary_member: { Args: { d: string; u: string }; Returns: boolean }
       is_diary_owner: { Args: { d: string; u: string }; Returns: boolean }
+      set_assistant_consent: { Args: { enabled: boolean }; Returns: undefined }
       stale_pending_media: {
         Args: { older_than?: string }
         Returns: {
