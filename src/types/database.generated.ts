@@ -477,6 +477,16 @@ export type Database = {
     Functions: {
       is_diary_member: { Args: { d: string; u: string }; Returns: boolean }
       is_diary_owner: { Args: { d: string; u: string }; Returns: boolean }
+      stale_pending_media: {
+        Args: { older_than?: string }
+        Returns: {
+          created_at: string
+          diary_id: string
+          entry_id: string
+          id: string
+          storage_path: string
+        }[]
+      }
     }
     Enums: {
       ai_message_kind: "question" | "observation"

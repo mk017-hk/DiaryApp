@@ -5,7 +5,7 @@ import { Alert, StyleSheet, View } from 'react-native';
 import { Button, Divider, Field, Screen, Text } from '@/components';
 import { space } from '@/design';
 import { AuthNotice, useSession } from '@/features/auth';
-import { clearEntries } from '@/features/entries/entryStore';
+import { clearEntries, useSync } from '@/features/entries';
 import { deleteAllRecordings } from '@/features/media';
 import { useProfile } from '@/features/profile';
 
@@ -20,6 +20,7 @@ export default function Account() {
   const router = useRouter();
   const { status, user, signOut, deleteAccount } = useSession();
   const { name, reset } = useProfile();
+  const { pending, syncNow } = useSync();
 
   const [confirming, setConfirming] = useState(false);
   const [typed, setTyped] = useState('');
@@ -27,33 +28,64 @@ export default function Account() {
   const [busy, setBusy] = useState(false);
 
   const wipeDevice = async () => {
-    // Entries are still local until Phase 2, so signing out has to take them
-    // with it. Leaving one person's diary on the device for the next person to
-    // sign in and find would be the worst bug this app could have.
+    // Entries live on the device, so signing out has to take them with it.
+    // Leaving one person's diary on the phone for the next person to sign in
+    // and find would be the worst bug this app could have.
     await Promise.all([clearEntries(), deleteAllRecordings(), reset()]);
   };
 
+  const finishSignOut = () => {
+    void (async () => {
+      setBusy(true);
+      const result = await signOut();
+      await wipeDevice();
+      setBusy(false);
+      if (!result.ok) setNotice(result.error.userMessage);
+    })();
+  };
+
+  /**
+   * Sign out, without quietly destroying anything.
+   *
+   * The wipe above is not reversible, so anything that has not reached the
+   * account yet dies with it. One last sync is attempted first, and if entries
+   * are still stranded afterwards — no signal, most likely — the confirmation
+   * says exactly how many rather than letting someone find out later.
+   */
   const confirmSignOut = () => {
-    Alert.alert(
-      'Sign out?',
-      'Your entries are on this device, so signing out removes them from it. Anything already saved to your account comes back when you sign in.',
-      [
-        { text: 'Stay signed in', style: 'cancel' },
-        {
-          text: 'Sign out',
-          style: 'destructive',
-          onPress: () => {
-            void (async () => {
-              setBusy(true);
-              const result = await signOut();
-              await wipeDevice();
-              setBusy(false);
-              if (!result.ok) setNotice(result.error.userMessage);
-            })();
-          },
-        },
-      ],
-    );
+    void (async () => {
+      let stranded = pending;
+
+      if (stranded > 0) {
+        setBusy(true);
+        const report = await syncNow();
+        setBusy(false);
+        if (report?.status === 'ok') stranded = 0;
+      }
+
+      if (stranded > 0) {
+        Alert.alert(
+          stranded === 1
+            ? 'One entry has not been saved yet'
+            : `${String(stranded)} entries have not been saved yet`,
+          'They are on this phone but have not reached your account, and signing out removes them from the phone. Try again once you have a connection.',
+          [
+            { text: 'Not now', style: 'cancel' },
+            { text: 'Sign out anyway', style: 'destructive', onPress: finishSignOut },
+          ],
+        );
+        return;
+      }
+
+      Alert.alert(
+        'Sign out?',
+        'Your entries are safe in your account. This removes them from the phone until you sign in again.',
+        [
+          { text: 'Stay signed in', style: 'cancel' },
+          { text: 'Sign out', style: 'destructive', onPress: finishSignOut },
+        ],
+      );
+    })();
   };
 
   const runDelete = async () => {

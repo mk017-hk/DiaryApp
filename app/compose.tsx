@@ -13,7 +13,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Button, Chip, DiaryPage, PressableScale, Text } from '@/components';
 import { space, useTheme } from '@/design';
-import { createEntry, updateEntry } from '@/features/entries/entryStore';
+import { createEntry, updateEntry } from '@/features/entries';
 import { persistRecording, VideoNote } from '@/features/media';
 import { useProfile } from '@/features/profile';
 import { longDate, toDateKey } from '@/lib/date';

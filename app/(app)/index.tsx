@@ -7,7 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Button, DiaryPage, PressableScale, Text } from '@/components';
 import { space, useTheme } from '@/design';
 import { dailyPrompt, personalGreeting } from '@/features/assistant/prompts';
-import { listEntries, onThisDay, type Entry } from '@/features/entries/entryStore';
+import { listEntries, onThisDay, useEntryChanges, useSync, type Entry } from '@/features/entries';
 import { VideoPoster } from '@/features/media';
 import { useProfile } from '@/features/profile';
 import { fromDateKey, longDate, toDateKey, yearsAgo } from '@/lib/date';
@@ -23,6 +23,7 @@ export default function Today() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { name, tone, intentions, capture } = useProfile();
+  const { state: syncState, pending } = useSync();
 
   const [entries, setEntries] = useState<Entry[]>([]);
   const [memories, setMemories] = useState<Entry[]>([]);
@@ -34,37 +35,38 @@ export default function Today() {
   // Reading the clock while rendering makes the greeting and the question
   // liable to change on any incidental re-render, and React 19 rightly
   // treats it as impure.
+  const load = useCallback(async () => {
+    const [all, resurfaced] = await Promise.all([listEntries(), onThisDay()]);
+
+    const now = new Date();
+    const todayKey = toDateKey(now);
+    const answeredToday = all.some((entry) => entry.entryDate === todayKey);
+    const latest = all[0];
+    const daysSinceLast =
+      latest === undefined
+        ? null
+        : Math.round(
+            (now.getTime() - fromDateKey(latest.entryDate).getTime()) / (1000 * 60 * 60 * 24),
+          );
+
+    setEntries(all);
+    setMemories(resurfaced);
+    setToday(now);
+    setHasEntryToday(answeredToday);
+    setQuestion(
+      dailyPrompt({ name, tone, intentions, daysSinceLast, hasEntryToday: answeredToday }),
+    );
+  }, [name, tone, intentions]);
+
   useFocusEffect(
     useCallback(() => {
-      let cancelled = false;
-      void (async () => {
-        const [all, resurfaced] = await Promise.all([listEntries(), onThisDay()]);
-        if (cancelled) return;
-
-        const now = new Date();
-        const todayKey = toDateKey(now);
-        const answeredToday = all.some((entry) => entry.entryDate === todayKey);
-        const latest = all[0];
-        const daysSinceLast =
-          latest === undefined
-            ? null
-            : Math.round(
-                (now.getTime() - fromDateKey(latest.entryDate).getTime()) / (1000 * 60 * 60 * 24),
-              );
-
-        setEntries(all);
-        setMemories(resurfaced);
-        setToday(now);
-        setHasEntryToday(answeredToday);
-        setQuestion(
-          dailyPrompt({ name, tone, intentions, daysSinceLast, hasEntryToday: answeredToday }),
-        );
-      })();
-      return () => {
-        cancelled = true;
-      };
-    }, [name, tone, intentions]),
+      void load();
+    }, [load]),
   );
+
+  // And again when a sync lands, so an entry written on another phone appears
+  // here rather than waiting for you to navigate away and back.
+  useEntryChanges(() => void load());
 
   // Nothing renders until the clock has been read once — a flash of the wrong
   // greeting is worse than a beat of nothing.
@@ -83,17 +85,29 @@ export default function Today() {
           <Text variant="caption" color="inkTertiary">
             {longDate(today)}
           </Text>
-          {/* The only way out of the diary and into settings. Deliberately
-              small: nothing on this screen should compete with the question. */}
-          <PressableScale
-            onPress={() => router.push('/account')}
-            haptic="light"
-            accessibilityLabel="Your account and settings"
-          >
-            <Text variant="caption" color="inkFaint">
-              You
-            </Text>
-          </PressableScale>
+          <View style={styles.headerRight}>
+            {/* Only when something is actually waiting. A permanent status
+                light would turn a diary into an inbox, and being offline is
+                the ordinary condition of a phone, not a problem to report. */}
+            {syncState === 'offline' && pending > 0 && (
+              <Text variant="caption" color="inkFaint">
+                Saved here · {pending} to send
+              </Text>
+            )}
+
+            {/* The only way out of the diary and into settings. Deliberately
+                small: nothing on this screen should compete with the
+                question. */}
+            <PressableScale
+              onPress={() => router.push('/account')}
+              haptic="light"
+              accessibilityLabel="Your account and settings"
+            >
+              <Text variant="caption" color="inkFaint">
+                You
+              </Text>
+            </PressableScale>
+          </View>
         </View>
 
         <Animated.View entering={FadeInDown.duration(400)} style={styles.opening}>
@@ -233,6 +247,7 @@ const styles = StyleSheet.create({
   blank: { maxWidth: 320 },
   content: { paddingRight: space.lg },
   header: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
+  headerRight: { alignItems: 'center', flexDirection: 'row', gap: space.sm },
   memory: { gap: space.xxs, padding: space.md },
   opening: { gap: space.xs, marginTop: space.xs },
   row: { alignItems: 'center', flexDirection: 'row', gap: space.sm, paddingVertical: space.sm },

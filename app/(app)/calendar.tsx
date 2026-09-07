@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { DiaryPage, PressableScale, Text } from '@/components';
 import { space, useTheme } from '@/design';
-import { datesWithEntries, entriesForDate, type Entry } from '@/features/entries/entryStore';
+import { datesWithEntries, entriesForDate, useEntryChanges, type Entry } from '@/features/entries';
 import { fromDateKey, longDate, monthGrid, monthName, toDateKey } from '@/lib/date';
 
 const WEEKDAY_INITIALS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
@@ -22,35 +22,32 @@ export default function Calendar() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
-  const today = new Date();
-  const [cursor, setCursor] = useState(new Date(today.getFullYear(), today.getMonth(), 1));
+  // Read once, lazily, rather than on every render. A clock read during render
+  // is impure — React 19 says so — and here it would also mean the month grid
+  // could silently change month underneath someone at midnight.
+  const [todayKey] = useState(() => toDateKey(new Date()));
+  const [cursor, setCursor] = useState(() => {
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth(), 1);
+  });
   const [marked, setMarked] = useState<Set<string>>(new Set());
-  const [selected, setSelected] = useState<string>(toDateKey(today));
+  const [selected, setSelected] = useState<string>(todayKey);
   const [dayEntries, setDayEntries] = useState<Entry[]>([]);
 
-  useFocusEffect(
-    useCallback(() => {
-      let cancelled = false;
-      void datesWithEntries().then((dates) => {
-        if (!cancelled) setMarked(dates);
-      });
-      return () => {
-        cancelled = true;
-      };
-    }, []),
-  );
+  const load = useCallback(async () => {
+    const [dates, found] = await Promise.all([datesWithEntries(), entriesForDate(selected)]);
+    setMarked(dates);
+    setDayEntries(found);
+  }, [selected]);
 
   useFocusEffect(
     useCallback(() => {
-      let cancelled = false;
-      void entriesForDate(selected).then((found) => {
-        if (!cancelled) setDayEntries(found);
-      });
-      return () => {
-        cancelled = true;
-      };
-    }, [selected]),
+      void load();
+    }, [load]),
   );
+
+  // A sync landing has to move the dots too, not just the day below them.
+  useEntryChanges(() => void load());
 
   const cells = monthGrid(cursor.getFullYear(), cursor.getMonth());
   const shiftMonth = (delta: number) =>
@@ -109,7 +106,7 @@ export default function Calendar() {
               return <View key={`blank-${String(index)}`} style={styles.cell} />;
 
             const date = fromDateKey(dateKey);
-            const isToday = dateKey === toDateKey(today);
+            const isToday = dateKey === todayKey;
             const isSelected = dateKey === selected;
             const hasEntry = marked.has(dateKey);
 
@@ -144,11 +141,13 @@ export default function Calendar() {
                   style={[
                     styles.dot,
                     {
-                      backgroundColor: hasEntry
-                        ? isSelected
-                          ? theme.colors.accentSoft
-                          : theme.colors.accentSoft
-                        : 'transparent',
+                      // On a selected day the cell behind is the accent, so the
+                      // dot has to lift off it rather than blend in.
+                      backgroundColor: !hasEntry
+                        ? 'transparent'
+                        : isSelected
+                          ? theme.colors.onAccent
+                          : theme.colors.accentSoft,
                     },
                   ]}
                 />

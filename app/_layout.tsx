@@ -8,6 +8,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { ThemeProvider, fontAssets, useTheme } from '@/design';
 import { SessionProvider, useSession } from '@/features/auth';
+import { SyncProvider } from '@/features/entries';
 import { LockGate, LockProvider } from '@/features/lock';
 import { ProfileProvider, useProfile } from '@/features/profile';
 import { logger } from '@/services/logger';
@@ -43,7 +44,12 @@ export default function RootLayout() {
                   kept apart on purpose. */}
               <LockProvider>
                 <LockGate>
-                  <ThemedStack />
+                  {/* Inside the gate: a sync that ran while the app was
+                      locked would be work nobody asked for, on a phone that
+                      may not be in its owner's hands. */}
+                  <SyncProvider>
+                    <ThemedStack />
+                  </SyncProvider>
                 </LockGate>
               </LockProvider>
             </ProfileProvider>

@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Button, DiaryPage, ErrorState, PressableScale, Text } from '@/components';
 import { space, useTheme } from '@/design';
-import { deleteEntry, getEntry, updateEntry, type Entry } from '@/features/entries/entryStore';
+import { deleteEntry, getEntry, updateEntry, type Entry } from '@/features/entries';
 import { deleteRecording, VideoNote } from '@/features/media';
 import { fromDateKey, fullDate, longDate } from '@/lib/date';
 
