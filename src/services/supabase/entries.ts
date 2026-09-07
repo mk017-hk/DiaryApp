@@ -1,6 +1,7 @@
 import type { Entry } from '@/features/entries/entryStore';
 
 import { isSupabaseConfigured, supabase } from './client';
+import { emotionIndex, replaceEntryEmotions } from './emotions';
 import { AppError, toAppError } from './errors';
 
 /**
@@ -26,6 +27,7 @@ interface EntryRow {
   id: string;
   diary_id: string;
   author_id: string;
+  thread_id: string | null;
   body: string | null;
   entry_date: string;
   entry_at: string;
@@ -47,6 +49,7 @@ interface EntryRow {
  */
 interface EntryRowWithMedia extends EntryRow {
   entry_media?: { storage_path: string; poster_path: string | null; status: string }[];
+  entry_emotions?: { emotion_id: string }[];
 }
 
 // ---------------------------------------------------------------------------
@@ -60,15 +63,16 @@ interface EntryRowWithMedia extends EntryRow {
  * resolution: it says when this edit was made, which on a phone that has been
  * in a tunnel for an hour is not remotely the same as now.
  *
- * Columns this app does not own — `thread_id`, `title`, `people` — are left
- * out rather than sent as null. PostgREST only updates the columns present, so
- * omitting them preserves whatever else has set them.
+ * Columns this app does not own yet — `title`, `people`, `location_label` —
+ * are left out rather than sent as null. PostgREST only updates the columns
+ * present, so omitting them preserves whatever else has set them.
  */
 export function toRow(entry: Entry, context: SyncContext): EntryRow {
   return {
     id: entry.id,
     diary_id: context.diaryId,
     author_id: context.userId,
+    thread_id: entry.threadId ?? null,
     body: entry.body,
     entry_date: entry.entryDate,
     entry_at: entry.entryAt,
@@ -87,8 +91,12 @@ export function toRow(entry: Entry, context: SyncContext): EntryRow {
  * particular phone and mean nothing on another, so they are never sent and
  * never overwritten by a pull — the media module deals in storage paths
  * instead, and a device that has the file keeps using the file.
+ *
+ * `slugById` translates the emotion ids a pull returns. Passed in rather than
+ * fetched so this stays pure and testable; the ids are per-project and mean
+ * nothing on a device, which is why entries store slugs.
  */
-export function fromRow(row: EntryRowWithMedia): Entry {
+export function fromRow(row: EntryRowWithMedia, slugById?: Map<string, string>): Entry {
   const entry: Entry = {
     id: row.id,
     entryDate: row.entry_date,
@@ -103,6 +111,13 @@ export function fromRow(row: EntryRowWithMedia): Entry {
   };
 
   if (row.deleted_at !== null) entry.deletedAt = row.deleted_at;
+  if (row.thread_id !== null) entry.threadId = row.thread_id;
+
+  if (row.entry_emotions !== undefined && slugById !== undefined) {
+    entry.emotions = row.entry_emotions
+      .map((item) => slugById.get(item.emotion_id))
+      .filter((slug): slug is string => slug !== undefined);
+  }
 
   // Only a finished upload counts. A `pending` row means the bytes may not be
   // there yet, and pointing a second device at a half-written object gives it
@@ -117,13 +132,13 @@ export function fromRow(row: EntryRowWithMedia): Entry {
 }
 
 const COLUMNS =
-  'id, diary_id, author_id, body, entry_date, entry_at, mood, is_favourite, deleted_at, created_at, updated_at';
+  'id, diary_id, author_id, thread_id, body, entry_date, entry_at, mood, is_favourite, deleted_at, created_at, updated_at';
 
 /** The push writes only `journal_entries`, so it asks for nothing else back. */
 const SELECT = COLUMNS;
 
 /** The pull wants the media paths too, in the same round trip. */
-const SELECT_WITH_MEDIA = `${COLUMNS}, entry_media(storage_path, poster_path, status)`;
+const SELECT_WITH_MEDIA = `${COLUMNS}, entry_media(storage_path, poster_path, status), entry_emotions(emotion_id)`;
 
 // ---------------------------------------------------------------------------
 // Push
@@ -169,7 +184,30 @@ export async function pushEntries(
     if (error !== null) return { ok: false, error: toAppError(error, 'push entries') };
 
     const rows = (data ?? []) as unknown as EntryRow[];
-    const accepted = rows.map(fromRow);
+    const accepted = rows.map((row) => fromRow(row));
+
+    // Emotions live in a join table, so they are a second write. It happens
+    // after the entries exist — the composite key is (entry_id, diary_id), so
+    // an emotion for a row the server has not got yet is simply rejected.
+    //
+    // Deliberately not awaited into the result: a failure here loses a colour
+    // on an entry, and must never be the reason the entry itself reports a
+    // failed sync and stays queued forever.
+    const alive = entries.filter((entry) => entry.deletedAt === undefined);
+    if (alive.length > 0) {
+      await replaceEntryEmotions(
+        alive.map((entry) => ({ id: entry.id, emotions: entry.emotions })),
+        context.diaryId,
+      );
+    }
+
+    // The accepted rows came back without emotions — the push does not ask for
+    // them. Carry across what we just sent, so adopting the server's answer
+    // does not blank them on the device.
+    const sentEmotions = new Map(entries.map((entry) => [entry.id, entry.emotions]));
+    for (const entry of accepted) {
+      entry.emotions = sentEmotions.get(entry.id) ?? [];
+    }
 
     return {
       ok: true,
@@ -233,7 +271,8 @@ export async function pullEntries(
     if (error !== null) return { ok: false, error: toAppError(error, 'pull entries') };
 
     const rows = (data ?? []) as unknown as EntryRowWithMedia[];
-    const entries = rows.map(fromRow);
+    const { slugById } = await emotionIndex();
+    const entries = rows.map((row) => fromRow(row, slugById));
     const watermark = rows.length === 0 ? null : (rows[rows.length - 1]?.updated_at ?? null);
 
     return { ok: true, value: { entries, watermark } };

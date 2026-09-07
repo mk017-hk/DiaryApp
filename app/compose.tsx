@@ -13,7 +13,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Button, Chip, DiaryPage, PressableScale, Text } from '@/components';
 import { space, useTheme } from '@/design';
-import { createEntry, updateEntry } from '@/features/entries';
+import { createEntry, EmotionPicker, ThreadPicker, updateEntry } from '@/features/entries';
 import { persistRecording, VideoNote } from '@/features/media';
 import { useProfile } from '@/features/profile';
 import { longDate, toDateKey } from '@/lib/date';
@@ -46,7 +46,13 @@ export default function Compose() {
   const [videoUri, setVideoUri] = useState<string | null>(null);
   const [body, setBody] = useState('');
   const [mood, setMood] = useState<number | null>(null);
+  const [emotions, setEmotions] = useState<string[]>([]);
+  const [threadId, setThreadId] = useState<string | undefined>(undefined);
   const [saving, setSaving] = useState(false);
+
+  // Read once. A screen open past midnight must not silently change which day
+  // the entry belongs to, and reading the clock during render is impure.
+  const [openedAt] = useState(() => new Date());
 
   const save = async () => {
     if (body.trim().length === 0 && videoUri === null) return;
@@ -62,7 +68,8 @@ export default function Compose() {
       entryAt: now.toISOString(),
       body: body.trim(),
       mood,
-      emotions: [],
+      emotions,
+      ...(threadId !== undefined ? { threadId } : {}),
       ...(videoUri !== null ? { videoUri } : {}),
       isFavourite: false,
     });
@@ -108,7 +115,7 @@ export default function Compose() {
         >
           <View style={styles.header}>
             <Text variant="caption" color="inkTertiary">
-              {longDate(new Date())}
+              {longDate(openedAt)}
             </Text>
             <PressableScale
               onPress={() => router.back()}
@@ -176,6 +183,10 @@ export default function Compose() {
               ))}
             </View>
           </View>
+
+          <EmotionPicker selected={emotions} onChange={setEmotions} />
+
+          <ThreadPicker selected={threadId} onChange={setThreadId} />
         </ScrollView>
 
         <View style={[styles.footer, { paddingBottom: insets.bottom + space.md }]}>

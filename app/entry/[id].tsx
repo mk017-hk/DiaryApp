@@ -5,7 +5,15 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Button, DiaryPage, ErrorState, PressableScale, Text } from '@/components';
 import { space, useTheme } from '@/design';
-import { deleteEntry, getEntry, updateEntry, type Entry } from '@/features/entries';
+import {
+  deleteEntry,
+  EmotionPicker,
+  getEntry,
+  getThread,
+  updateEntry,
+  type Entry,
+  type Thread,
+} from '@/features/entries';
 import { deleteRecording, VideoNote } from '@/features/media';
 import { fromDateKey, fullDate, longDate } from '@/lib/date';
 
@@ -31,12 +39,19 @@ export default function EntryDetail() {
   const insets = useSafeAreaInsets();
 
   const [entry, setEntry] = useState<Entry | null | 'loading'>('loading');
+  const [thread, setThread] = useState<Thread | null>(null);
 
   useEffect(() => {
     let cancelled = false;
-    void getEntry(id).then((found) => {
-      if (!cancelled) setEntry(found);
-    });
+    void (async () => {
+      const found = await getEntry(id);
+      if (cancelled) return;
+      setEntry(found);
+
+      const story =
+        found !== null && found.threadId !== undefined ? await getThread(found.threadId) : null;
+      if (!cancelled) setThread(story);
+    })();
     return () => {
       cancelled = true;
     };
@@ -106,6 +121,20 @@ export default function EntryDetail() {
             {fullDate(date)}
             {entry.mood !== null ? ` · ${MOOD_LABELS[entry.mood] ?? ''}` : ''}
           </Text>
+
+          {/* Which story this belongs to, and a way into the rest of it. */}
+          {thread !== null && (
+            <PressableScale
+              onPress={() => router.push(`/thread/${thread.id}`)}
+              haptic="light"
+              accessibilityLabel={`Open the thread ${thread.title}`}
+              style={styles.threadLink}
+            >
+              <Text variant="caption" color="accent">
+                Part of {thread.title} ›
+              </Text>
+            </PressableScale>
+          )}
         </View>
 
         {/* Either half is enough to show a player: this phone has the file, or
@@ -125,6 +154,16 @@ export default function EntryDetail() {
           </Text>
         )}
 
+        {/* Editable here, not just displayed. What a day felt like is often
+            clearer a week later than it was at the time. */}
+        <EmotionPicker
+          selected={entry.emotions}
+          onChange={(emotions) => {
+            setEntry({ ...entry, emotions });
+            void updateEntry(entry.id, { emotions });
+          }}
+        />
+
         <View style={styles.footer}>
           <Button label="Delete this entry" onPress={() => void remove()} variant="danger" />
         </View>
@@ -138,6 +177,7 @@ const styles = StyleSheet.create({
   dateBlock: { gap: space.xxs, marginTop: space.lg },
   footer: { marginTop: space.xxxl },
   header: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
+  threadLink: { alignSelf: 'flex-start', paddingVertical: space.xxs },
   videoNote: { marginTop: space.lg },
   writing: { fontSize: 19, lineHeight: 32, marginTop: space.lg },
 });

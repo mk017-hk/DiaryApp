@@ -20,11 +20,13 @@ import {
   pushEntries,
   type SyncContext,
 } from '@/services/supabase/entries';
+import { forgetEmotions } from '@/services/supabase/emotions';
 import {
   forgetSignedUrls,
   reconcilePendingMedia,
   uploadRecording,
 } from '@/services/supabase/media';
+import { pullThreads, pushThreads } from '@/services/supabase/threads';
 
 import { allEntries, subscribeToEntries, unsyncedEntries } from './entryStore';
 import { resetSyncState, syncEntries, type SyncRemote, type SyncReport } from './sync';
@@ -69,6 +71,8 @@ function remoteFor(context: SyncContext): SyncRemote {
             error: new AppError('not_found', 'That recording is no longer on this device.'),
           })
         : uploadRecording(entry.id, entry.videoUri, entry.posterUri, context),
+    pushThreads: (threads) => pushThreads(threads, context),
+    pullThreads: () => pullThreads(context),
   };
 }
 
@@ -125,6 +129,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
     // expire, and one left in a live process outlives the session it came
     // from.
     forgetSignedUrls();
+    forgetEmotions();
     void resetSyncState();
   }, [status]);
 

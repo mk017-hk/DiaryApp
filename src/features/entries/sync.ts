@@ -11,6 +11,7 @@ import {
   unsyncedEntries,
   type Entry,
 } from './entryStore';
+import { applyRemoteThreads, markThreadsSynced, unsyncedThreads, type Thread } from './threadStore';
 
 /**
  * Getting the device and the server to agree.
@@ -55,6 +56,16 @@ export interface SyncRemote {
    * and so a build with no media pipeline is a smaller thing, not a broken one.
    */
   uploadMedia?(entry: Entry): Promise<RemoteResult<UploadedMedia>>;
+  /**
+   * Threads, both directions.
+   *
+   * Optional for the same reason media is: the entry path should be testable
+   * and reasonable on its own. When present it runs *first*, because an entry
+   * naming a thread the server has not got yet is rejected by the composite
+   * foreign key that keeps threads and entries in the same diary.
+   */
+  pushThreads?(threads: Thread[]): Promise<RemoteResult<Thread[]>>;
+  pullThreads?(): Promise<RemoteResult<Thread[]>>;
 }
 
 export interface SyncReport {
@@ -65,6 +76,8 @@ export interface SyncReport {
   removed: number;
   /** Recordings that reached the bucket this pass. */
   uploaded: number;
+  /** Threads pushed and pulled. */
+  threads: number;
   error?: AppError;
 }
 
@@ -124,7 +137,7 @@ export async function syncEntries(
   options: SyncOptions = {},
 ): Promise<SyncReport> {
   if (inFlight !== null) {
-    return { status: 'busy', pushed: 0, pulled: 0, removed: 0, uploaded: 0 };
+    return { status: 'busy', pushed: 0, pulled: 0, removed: 0, uploaded: 0, threads: 0 };
   }
 
   inFlight = runSync(remote, options).finally(() => {
@@ -138,6 +151,14 @@ async function runSync(remote: SyncRemote, options: SyncOptions): Promise<SyncRe
   let pushed = 0;
   let removed = 0;
   let uploaded = 0;
+
+  // --- threads, first -----------------------------------------------------
+
+  // Before entries, always. An entry naming a thread the server has not seen
+  // is rejected by the composite foreign key that keeps the two in the same
+  // diary — so a thread started offline has to arrive before the entries that
+  // belong to it, or the whole push fails on a constraint.
+  const threads = await syncThreads(remote);
 
   // --- push ---------------------------------------------------------------
   const queued = await unsyncedEntries();
@@ -153,6 +174,7 @@ async function runSync(remote: SyncRemote, options: SyncOptions): Promise<SyncRe
         pulled: 0,
         removed: 0,
         uploaded: 0,
+        threads,
         error: result.error,
       };
     }
@@ -176,7 +198,7 @@ async function runSync(remote: SyncRemote, options: SyncOptions): Promise<SyncRe
   const pull = await remote.pull(since);
 
   if (!pull.ok) {
-    return { status: 'failed', pushed, pulled: 0, removed, uploaded, error: pull.error };
+    return { status: 'failed', pushed, pulled: 0, removed, uploaded, threads, error: pull.error };
   }
 
   const { entries, watermark } = pull.value;
@@ -207,7 +229,45 @@ async function runSync(remote: SyncRemote, options: SyncOptions): Promise<SyncRe
   // nothing pointing at them.
   uploaded = await uploadPendingMedia(remote);
 
-  return { status: 'ok', pushed, pulled: entries.length, removed, uploaded };
+  return { status: 'ok', pushed, pulled: entries.length, removed, uploaded, threads };
+}
+
+/**
+ * Threads, both ways.
+ *
+ * No watermark and no tombstones: a person has a handful of threads, so a full
+ * pull is one small request and saves an entire class of "which ones did I
+ * miss" bug. Threads close rather than disappear, so there is nothing to
+ * tombstone.
+ *
+ * Failures here do not fail the pass. A thread that has not arrived yet means
+ * an entry naming it will be rejected and stay queued, which is exactly the
+ * right outcome and needs no separate handling.
+ */
+async function syncThreads(remote: SyncRemote): Promise<number> {
+  let touched = 0;
+
+  if (remote.pushThreads !== undefined) {
+    const queued = await unsyncedThreads();
+    if (queued.length > 0) {
+      const result = await remote.pushThreads(queued);
+      if (result.ok) {
+        await applyRemoteThreads(result.value);
+        await markThreadsSynced(result.value.map((thread) => thread.id));
+        touched += result.value.length;
+      }
+    }
+  }
+
+  if (remote.pullThreads !== undefined) {
+    const result = await remote.pullThreads();
+    if (result.ok) {
+      await applyRemoteThreads(result.value);
+      touched += result.value.length;
+    }
+  }
+
+  return touched;
 }
 
 /**

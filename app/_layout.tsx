@@ -129,6 +129,7 @@ function ThemedStack() {
           options={{ presentation: 'modal', animation: 'slide_from_bottom' }}
         />
         <Stack.Screen name="entry/[id]" options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="thread/[id]" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="account" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="security" options={{ animation: 'slide_from_right' }} />
       </Stack>

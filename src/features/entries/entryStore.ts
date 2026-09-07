@@ -41,6 +41,15 @@ export interface Entry {
   transcript?: string;
 
   /**
+   * The story this belongs to, if it belongs to one.
+   *
+   * The database enforces that a thread and its entries share a diary, through
+   * a composite foreign key, so a forged id is rejected by Postgres rather
+   * than trusted from the client.
+   */
+  threadId?: string;
+
+  /**
    * Where the recording lives in the bucket.
    *
    * How a second device plays a video it never recorded: it has no file, so it

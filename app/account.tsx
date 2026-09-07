@@ -5,7 +5,7 @@ import { Alert, StyleSheet, View } from 'react-native';
 import { Button, Divider, Field, Screen, Text } from '@/components';
 import { space } from '@/design';
 import { AuthNotice, useSession } from '@/features/auth';
-import { clearEntries, useSync } from '@/features/entries';
+import { clearEntries, clearThreads, useSync } from '@/features/entries';
 import { deleteAllRecordings } from '@/features/media';
 import { useProfile } from '@/features/profile';
 
@@ -31,7 +31,7 @@ export default function Account() {
     // Entries live on the device, so signing out has to take them with it.
     // Leaving one person's diary on the phone for the next person to sign in
     // and find would be the worst bug this app could have.
-    await Promise.all([clearEntries(), deleteAllRecordings(), reset()]);
+    await Promise.all([clearEntries(), clearThreads(), deleteAllRecordings(), reset()]);
   };
 
   const finishSignOut = () => {

@@ -7,7 +7,15 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Button, DiaryPage, PressableScale, Text } from '@/components';
 import { space, useTheme } from '@/design';
 import { dailyPrompt, personalGreeting } from '@/features/assistant/prompts';
-import { listEntries, onThisDay, useEntryChanges, useSync, type Entry } from '@/features/entries';
+import {
+  listEntries,
+  onThisDay,
+  openThreads,
+  useEntryChanges,
+  useSync,
+  type Entry,
+  type Thread,
+} from '@/features/entries';
 import { VideoPoster } from '@/features/media';
 import { useProfile } from '@/features/profile';
 import { fromDateKey, longDate, toDateKey, yearsAgo } from '@/lib/date';
@@ -30,13 +38,18 @@ export default function Today() {
   const [today, setToday] = useState<Date | null>(null);
   const [hasEntryToday, setHasEntryToday] = useState(false);
   const [question, setQuestion] = useState('');
+  const [threads, setThreads] = useState<Thread[]>([]);
 
   // Everything time-dependent is settled here rather than during render.
   // Reading the clock while rendering makes the greeting and the question
   // liable to change on any incidental re-render, and React 19 rightly
   // treats it as impure.
   const load = useCallback(async () => {
-    const [all, resurfaced] = await Promise.all([listEntries(), onThisDay()]);
+    const [all, resurfaced, stories] = await Promise.all([
+      listEntries(),
+      onThisDay(),
+      openThreads(),
+    ]);
 
     const now = new Date();
     const todayKey = toDateKey(now);
@@ -51,6 +64,7 @@ export default function Today() {
 
     setEntries(all);
     setMemories(resurfaced);
+    setThreads(stories);
     setToday(now);
     setHasEntryToday(answeredToday);
     setQuestion(
@@ -166,6 +180,22 @@ export default function Today() {
           </View>
         )}
 
+        {threads.length > 0 && (
+          <View style={styles.section}>
+            <Text variant="overline" color="inkTertiary">
+              What you are in the middle of
+            </Text>
+            {threads.slice(0, 4).map((thread) => (
+              <ThreadRow
+                key={thread.id}
+                thread={thread}
+                count={entries.filter((entry) => entry.threadId === thread.id).length}
+                onPress={() => router.push(`/thread/${thread.id}`)}
+              />
+            ))}
+          </View>
+        )}
+
         {entries.length > 0 && (
           <View style={styles.section}>
             <Text variant="overline" color="inkTertiary">
@@ -191,6 +221,32 @@ export default function Today() {
         )}
       </ScrollView>
     </DiaryPage>
+  );
+}
+
+/** A story you are still living. Count, not streak — texture, never a score. */
+function ThreadRow({
+  thread,
+  count,
+  onPress,
+}: {
+  thread: Thread;
+  count: number;
+  onPress: () => void;
+}) {
+  return (
+    <PressableScale
+      onPress={onPress}
+      haptic="light"
+      accessibilityLabel={`Open the thread ${thread.title}`}
+      style={styles.threadRow}
+    >
+      <Text variant="title3">{thread.title}</Text>
+      <Text variant="caption" color="inkTertiary">
+        {count === 0 ? 'Nothing in it yet' : `${String(count)} so far`}
+        {thread.isPrivate ? ' · private' : ''}
+      </Text>
+    </PressableScale>
   );
 }
 
@@ -250,6 +306,7 @@ const styles = StyleSheet.create({
   content: { paddingRight: space.lg },
   header: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
   headerRight: { alignItems: 'center', flexDirection: 'row', gap: space.sm },
+  threadRow: { gap: space.xxs, paddingVertical: space.sm },
   memory: { gap: space.xxs, padding: space.md },
   opening: { gap: space.xs, marginTop: space.xs },
   row: { alignItems: 'center', flexDirection: 'row', gap: space.sm, paddingVertical: space.sm },

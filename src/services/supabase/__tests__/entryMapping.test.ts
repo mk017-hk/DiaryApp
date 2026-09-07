@@ -51,13 +51,18 @@ describe('sending an entry', () => {
   });
 
   // PostgREST only updates the columns present, so leaving these out preserves
-  // whatever set them. Sending nulls would erase a thread on every sync.
-  it('omits columns this app does not own', () => {
+  // whatever set them. Sending nulls would erase them on every sync.
+  it('omits columns this app does not own yet', () => {
     const row = toRow(entry, context) as unknown as Record<string, unknown>;
 
-    expect(row).not.toHaveProperty('thread_id');
     expect(row).not.toHaveProperty('title');
     expect(row).not.toHaveProperty('people');
+    expect(row).not.toHaveProperty('location_label');
+  });
+
+  it('sends the thread an entry belongs to, and a null when it belongs to none', () => {
+    expect(toRow({ ...entry, threadId: 'thread-1' }, context).thread_id).toEqual('thread-1');
+    expect(toRow(entry, context).thread_id).toBeNull();
   });
 
   it('sends a tombstone as a deleted_at rather than as an absence', () => {
@@ -90,6 +95,16 @@ describe('reading a row back', () => {
     expect(fromRow({ ...row, body: null }).body).toEqual('');
   });
 
+  it('reads a thread assignment back', () => {
+    expect(fromRow({ ...row, thread_id: 'thread-1' }).threadId).toEqual('thread-1');
+  });
+
+  // Absent rather than null, so `threadId !== undefined` is the only check a
+  // caller ever needs.
+  it('leaves threadId off entirely when the entry belongs to no thread', () => {
+    expect(fromRow({ ...row, thread_id: null }).threadId).toBeUndefined();
+  });
+
   it('leaves deletedAt off entirely when the row is alive', () => {
     expect(fromRow({ ...row, deleted_at: null }).deletedAt).toBeUndefined();
   });
@@ -108,5 +123,44 @@ describe('reading a row back', () => {
 
     expect(returned.videoUri).toBeUndefined();
     expect(returned.posterUri).toBeUndefined();
+  });
+});
+
+describe('emotions, which come back as ids', () => {
+  const row = toRow(entry, context);
+  const slugById = new Map([
+    ['aaaa-1', 'sad'],
+    ['aaaa-2', 'lonely'],
+  ]);
+
+  // Entries store slugs because the ids are generated at seed time and differ
+  // between a local stack and production. A device holding one would break the
+  // moment it pointed at a different project.
+  it('translates them to the slugs entries are stored with', () => {
+    const returned = fromRow(
+      { ...row, entry_emotions: [{ emotion_id: 'aaaa-1' }, { emotion_id: 'aaaa-2' }] },
+      slugById,
+    );
+
+    expect(returned.emotions).toEqual(['sad', 'lonely']);
+  });
+
+  it('drops an id it does not recognise rather than inventing a slug', () => {
+    const returned = fromRow(
+      { ...row, entry_emotions: [{ emotion_id: 'aaaa-1' }, { emotion_id: 'unknown' }] },
+      slugById,
+    );
+
+    expect(returned.emotions).toEqual(['sad']);
+  });
+
+  it('reports none when the entry has none', () => {
+    expect(fromRow({ ...row, entry_emotions: [] }, slugById).emotions).toEqual([]);
+  });
+
+  // The push does not ask for emotions back, so a row from that path has no
+  // embed at all. Guessing would blank them on the device.
+  it('leaves them alone when the response carried no emotions at all', () => {
+    expect(fromRow(row, slugById).emotions).toEqual([]);
   });
 });
