@@ -149,6 +149,8 @@ animation gated on the OS Reduce Motion setting.
 
 ## Status
 
+See [ROADMAP.md](ROADMAP.md) for the full build plan and where this sits in it.
+
 Built: design system, database schema with row level security, app lock,
 onboarding, the daily question, calendar, compose and entry detail.
 
