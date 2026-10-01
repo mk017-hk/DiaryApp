@@ -54,7 +54,13 @@ export default function Onboarding() {
     // would match nothing and vanish silently — which it did, until a browser
     // run showed ai_consented_at still null after somebody had said yes.
     // `PendingConsent` applies it the moment an account exists.
-    await completeOnboarding({ name, intentions, tone, capture, assistantConsent: assistantAllowed });
+    await completeOnboarding({
+      name,
+      intentions,
+      tone,
+      capture,
+      assistantConsent: assistantAllowed,
+    });
 
     // Straight to sign-up, not to the welcome screen the guard would otherwise
     // pick: they have just told us who they are, so "sign in or create an

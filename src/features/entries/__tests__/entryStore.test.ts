@@ -46,6 +46,7 @@ const draft = (overrides: Partial<NewEntry> = {}): NewEntry => ({
   body: 'A thing that happened.',
   mood: 3,
   emotions: [],
+  media: [],
   isFavourite: false,
   ...overrides,
 });

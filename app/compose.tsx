@@ -1,5 +1,6 @@
 import { CameraView, useCameraPermissions, useMicrophonePermissions } from 'expo-camera';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import * as Crypto from 'expo-crypto';
 import { useRef, useState } from 'react';
 import {
   KeyboardAvoidingView,
@@ -13,8 +14,24 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Button, Chip, DiaryPage, PressableScale, Text } from '@/components';
 import { space, useTheme } from '@/design';
-import { createEntry, EmotionPicker, ThreadPicker, updateEntry } from '@/features/entries';
-import { persistRecording, VideoNote } from '@/features/media';
+import {
+  createEntry,
+  EmotionPicker,
+  ThreadPicker,
+  updateEntry,
+  type EntryMedia,
+} from '@/features/entries';
+import {
+  MAX_PHOTOS,
+  persistPhoto,
+  persistRecording,
+  persistVoiceNote,
+  pickPhotos,
+  PhotoNote,
+  VideoNote,
+  VoiceNote,
+  VoiceRecorder,
+} from '@/features/media';
 import { useProfile } from '@/features/profile';
 import { longDate, toDateKey } from '@/lib/date';
 import { logger } from '@/services/logger';
@@ -43,7 +60,16 @@ export default function Compose() {
   const { mode } = useLocalSearchParams<{ mode?: string }>();
 
   const [recording, setRecording] = useState(mode === 'video');
-  const [videoUri, setVideoUri] = useState<string | null>(null);
+  const [voiceOpen, setVoiceOpen] = useState(mode === 'voice');
+
+  /**
+   * Everything attached so far, in the order it was added.
+   *
+   * Still pointing at temporary files at this stage — they are moved somewhere
+   * durable on save, because a capture the user then abandons should not leave
+   * anything behind in the document directory.
+   */
+  const [media, setMedia] = useState<EntryMedia[]>([]);
   const [body, setBody] = useState('');
   const [mood, setMood] = useState<number | null>(null);
   const [emotions, setEmotions] = useState<string[]>([]);
@@ -55,39 +81,69 @@ export default function Compose() {
   // the entry belongs to, and reading the clock during render is impure.
   const [openedAt] = useState(() => new Date());
 
+  const photos = media.filter((item) => item.kind === 'photo');
+  const video = media.find((item) => item.kind === 'video');
+  const voice = media.find((item) => item.kind === 'audio');
+  const hasSomething = body.trim().length > 0 || media.length > 0;
+
+  const addPhotos = async () => {
+    const picked = await pickPhotos(MAX_PHOTOS - photos.length);
+    if (picked.length === 0) return;
+
+    setMedia((current) => [
+      ...current,
+      ...picked.map((uri) => ({ id: Crypto.randomUUID(), kind: 'photo' as const, uri })),
+    ]);
+  };
+
   const save = async () => {
-    if (body.trim().length === 0 && videoUri === null) return;
+    if (!hasSomething) return;
     setSaving(true);
     const now = new Date();
 
-    // The entry is written first, pointing at the temporary recording. If the
-    // move to permanent storage then fails, the entry still exists and still
-    // references a playable file — the worst case is a clip the system may
-    // later reclaim, rather than a moment lost outright.
+    // The entry is written first, still pointing at the temporary files. If a
+    // move then fails the entry still exists and still references something
+    // playable — the worst case is a file the system may later reclaim, rather
+    // than a moment lost outright.
     const entry = await createEntry({
       entryDate: toDateKey(now),
       entryAt: now.toISOString(),
       body: body.trim(),
       mood,
       emotions,
+      media,
       ...(threadId !== undefined ? { threadId } : {}),
       ...(aiExcluded ? { aiExcluded: true } : {}),
-      ...(videoUri !== null ? { videoUri } : {}),
       isFavourite: false,
     });
 
-    if (videoUri !== null) {
-      try {
-        const stored = await persistRecording(videoUri, entry.id);
-        await updateEntry(entry.id, {
-          videoUri: stored.uri,
-          ...(stored.posterUri !== undefined ? { posterUri: stored.posterUri } : {}),
-        });
-      } catch (error) {
-        logger.error('Could not move recording into permanent storage', { error });
-      }
-    }
+    const durable = await Promise.all(
+      media.map(async (item): Promise<EntryMedia> => {
+        if (item.uri === undefined) return item;
 
+        try {
+          if (item.kind === 'video') {
+            const stored = await persistRecording(item.uri, item.id);
+            return {
+              ...item,
+              uri: stored.uri,
+              ...(stored.posterUri !== undefined ? { posterUri: stored.posterUri } : {}),
+            };
+          }
+
+          if (item.kind === 'photo') {
+            return { ...item, uri: persistPhoto(item.uri, item.id) };
+          }
+
+          return { ...item, uri: persistVoiceNote(item.uri, item.id) };
+        } catch (error) {
+          logger.error('Could not move a capture into permanent storage', { error });
+          return item;
+        }
+      }),
+    );
+
+    await updateEntry(entry.id, { media: durable });
     router.back();
   };
 
@@ -96,7 +152,10 @@ export default function Compose() {
       <VideoCapture
         onCancel={() => setRecording(false)}
         onCaptured={(uri) => {
-          setVideoUri(uri);
+          setMedia((current) => [
+            ...current.filter((item) => item.kind !== 'video'),
+            { id: Crypto.randomUUID(), kind: 'video', uri },
+          ]);
           setRecording(false);
         }}
       />
@@ -131,11 +190,11 @@ export default function Compose() {
             </PressableScale>
           </View>
 
-          {videoUri !== null && (
+          {video !== undefined && (
             <View style={styles.videoNote}>
-              <VideoNote uri={videoUri} />
+              <VideoNote item={video} />
               <PressableScale
-                onPress={() => setVideoUri(null)}
+                onPress={() => setMedia((c) => c.filter((item) => item.id !== video.id))}
                 haptic="light"
                 accessibilityLabel="Discard this recording"
                 style={styles.discard}
@@ -147,18 +206,69 @@ export default function Compose() {
             </View>
           )}
 
+          {voice !== undefined && (
+            <View style={styles.attachment}>
+              <VoiceNote item={voice} />
+              <PressableScale
+                onPress={() => setMedia((c) => c.filter((item) => item.id !== voice.id))}
+                haptic="light"
+                accessibilityLabel="Discard this voice note"
+                style={styles.discard}
+              >
+                <Text variant="caption" color="inkTertiary">
+                  Record it again
+                </Text>
+              </PressableScale>
+            </View>
+          )}
+
+          {voiceOpen && voice === undefined && (
+            <View style={styles.attachment}>
+              <VoiceRecorder
+                onCancel={() => setVoiceOpen(false)}
+                onRecorded={(uri, durationMs) => {
+                  setMedia((current) => [
+                    ...current,
+                    { id: Crypto.randomUUID(), kind: 'audio', uri, durationMs },
+                  ]);
+                  setVoiceOpen(false);
+                }}
+              />
+            </View>
+          )}
+
+          {photos.length > 0 && (
+            <View style={styles.photos}>
+              {photos.map((photo) => (
+                <View key={photo.id} style={styles.photoWrap}>
+                  <PhotoNote item={photo} />
+                  <PressableScale
+                    onPress={() => setMedia((c) => c.filter((item) => item.id !== photo.id))}
+                    haptic="light"
+                    accessibilityLabel="Remove this photo"
+                    style={styles.discard}
+                  >
+                    <Text variant="caption" color="inkTertiary">
+                      Remove
+                    </Text>
+                  </PressableScale>
+                </View>
+              ))}
+            </View>
+          )}
+
           {/* Serif, generous leading, no border. This is the page. */}
           <TextInput
             value={body}
             onChangeText={setBody}
             placeholder={
-              videoUri !== null
+              media.length > 0
                 ? 'Anything you want to add in writing?'
                 : `Start anywhere, ${name.length > 0 ? name : 'friend'}…`
             }
             placeholderTextColor={theme.colors.inkFaint}
             multiline
-            autoFocus={videoUri === null}
+            autoFocus={media.length === 0}
             textAlignVertical="top"
             style={[
               styles.writing,
@@ -213,24 +323,42 @@ export default function Compose() {
         </ScrollView>
 
         <View style={[styles.footer, { paddingBottom: insets.bottom + space.md }]}>
-          {videoUri === null && (
-            <Button
-              label="Record instead"
-              onPress={() => setRecording(true)}
-              variant="ghost"
-              size="small"
-            />
-          )}
+          {/* The four formats the concept promised, as one quiet row rather
+              than four buttons competing with what you are writing. Each one
+              disappears once it has been used. */}
+          <View style={styles.attachRow}>
+            {video === undefined && (
+              <AttachLink label="Record" onPress={() => setRecording(true)} />
+            )}
+            {voice === undefined && !voiceOpen && (
+              <AttachLink label="Say it" onPress={() => setVoiceOpen(true)} />
+            )}
+            {photos.length < MAX_PHOTOS && (
+              <AttachLink label="Add a photo" onPress={() => void addPhotos()} />
+            )}
+          </View>
+
           <Button
             label="Keep this"
             onPress={() => void save()}
             loading={saving}
-            disabled={body.trim().length === 0 && videoUri === null}
+            disabled={!hasSomething}
             fullWidth
           />
         </View>
       </KeyboardAvoidingView>
     </DiaryPage>
+  );
+}
+
+/** One of the ways to attach something. Deliberately a link, not a button. */
+function AttachLink({ label, onPress }: { label: string; onPress: () => void }) {
+  return (
+    <PressableScale onPress={onPress} haptic="light" accessibilityLabel={label}>
+      <Text variant="label" color="accent">
+        {label}
+      </Text>
+    </PressableScale>
   );
 }
 
@@ -325,7 +453,11 @@ const styles = StyleSheet.create({
   cameraBottom: { alignItems: 'center', bottom: 0, left: 0, position: 'absolute', right: 0 },
   cameraTop: { left: space.lg, position: 'absolute', top: 0 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: space.xs },
+  attachRow: { flexDirection: 'row', gap: space.lg, paddingVertical: space.xs },
+  attachment: { gap: space.xs, marginTop: space.md },
   close: { padding: space.xxs },
+  photoWrap: { gap: space.xxs },
+  photos: { gap: space.sm, marginTop: space.md },
   exclude: {
     alignSelf: 'flex-start',
     marginTop: space.lg,

@@ -1,4 +1,3 @@
-import * as Crypto from 'expo-crypto';
 import { File, UploadType } from 'expo-file-system';
 
 import { logger } from '@/services/logger';
@@ -48,6 +47,13 @@ const MIME: Record<string, string> = {
   jpg: 'image/jpeg',
   jpeg: 'image/jpeg',
   png: 'image/png',
+  heic: 'image/heic',
+  webp: 'image/webp',
+  // Voice notes. The bucket's allowed_mime_types lists all of these.
+  m4a: 'audio/x-m4a',
+  mp3: 'audio/mpeg',
+  wav: 'audio/wav',
+  caf: 'audio/x-caf',
 };
 
 export function mimeFor(extension: string): string {
@@ -107,6 +113,15 @@ export interface UploadedMedia {
   posterPath: string | null;
 }
 
+/** What the sync engine hands over: one file, and what kind of thing it is. */
+export interface UploadRequest {
+  entryId: string;
+  mediaId: string;
+  kind: 'video' | 'photo' | 'audio';
+  uri: string;
+  posterUri?: string | undefined;
+}
+
 /**
  * Puts an entry's recording in the bucket and records it.
  *
@@ -116,41 +131,43 @@ export interface UploadedMedia {
  * recording afterwards would leave the bytes with nothing pointing at them:
  * invisible to the user, invisible to the reconciler, and billed for forever.
  */
-export async function uploadRecording(
-  entryId: string,
-  videoUri: string,
-  posterUri: string | undefined,
+export async function uploadMedia(
+  request: UploadRequest,
   context: MediaContext,
 ): Promise<MediaResult<UploadedMedia>> {
   if (!isSupabaseConfigured) {
     return { ok: false, error: new AppError('unknown', 'No account service in this build.') };
   }
 
+  const { entryId, mediaId, kind, uri, posterUri } = request;
+
   try {
     // Reuse the row from an earlier attempt rather than making a second one,
     // so a retry does not leave a trail of pending rows and orphaned objects.
+    // Keyed on the media id, which the device generated, so several photos on
+    // one entry each find their own row.
     const { data: existing } = await supabase
       .from('entry_media')
       .select('id, storage_path, poster_path, status')
-      .eq('entry_id', entryId)
+      .eq('id', mediaId)
       .limit(1);
 
     const previous = existing?.[0];
-    const extension = extensionOf(videoUri);
+    const extension = extensionOf(uri);
     const path =
-      previous?.storage_path ??
-      storagePath(context.diaryId, entryId, extension, Crypto.randomUUID());
+      previous?.storage_path ?? storagePath(context.diaryId, entryId, extension, mediaId);
     const posterTarget =
       posterUri === undefined
         ? null
         : (previous?.poster_path ??
-          storagePath(context.diaryId, entryId, 'jpg', Crypto.randomUUID()));
+          storagePath(context.diaryId, entryId, 'jpg', `${mediaId}-poster`));
 
     if (previous === undefined) {
       const { error } = await supabase.from('entry_media').insert({
+        id: mediaId,
         entry_id: entryId,
         diary_id: context.diaryId,
-        kind: 'video',
+        kind,
         storage_path: path,
         poster_path: posterTarget,
         mime_type: mimeFor(extension),
@@ -166,17 +183,16 @@ export async function uploadRecording(
       await putFile(posterUri, posterTarget, 'image/jpeg');
     }
 
-    await putFile(videoUri, path, mimeFor(extension));
+    await putFile(uri, path, mimeFor(extension));
 
-    const size = sizeOf(videoUri);
+    const size = sizeOf(uri);
     const { error: updateError } = await supabase
       .from('entry_media')
       .update({
         status: 'uploaded',
         ...(size !== null ? { size_bytes: size } : {}),
       })
-      .eq('entry_id', entryId)
-      .eq('storage_path', path);
+      .eq('id', mediaId);
 
     if (updateError !== null) return { ok: false, error: toAppError(updateError, 'record media') };
 
@@ -347,22 +363,25 @@ export interface ReconcileReport {
  */
 export async function reconcilePendingMedia(
   context: MediaContext,
-  localUriFor: (entryId: string) => string | undefined,
+  localFileFor: (mediaId: string) => { kind: UploadRequest['kind']; uri: string } | undefined,
 ): Promise<ReconcileReport> {
   const stale = await stalePendingMedia();
   let retried = 0;
   let abandoned = 0;
 
   for (const row of stale) {
-    const localUri = localUriFor(row.entryId);
+    const local = localFileFor(row.id);
 
-    if (localUri === undefined) {
+    if (local === undefined) {
       await supabase.from('entry_media').update({ status: 'failed' }).eq('id', row.id);
       abandoned += 1;
       continue;
     }
 
-    const result = await uploadRecording(row.entryId, localUri, undefined, context);
+    const result = await uploadMedia(
+      { entryId: row.entryId, mediaId: row.id, kind: local.kind, uri: local.uri },
+      context,
+    );
     if (result.ok) retried += 1;
   }
 

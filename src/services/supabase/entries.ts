@@ -1,4 +1,4 @@
-import type { Entry } from '@/features/entries/entryStore';
+import type { Entry, MediaKind } from '@/features/entries/entryStore';
 
 import { isSupabaseConfigured, supabase } from './client';
 import { emotionIndex, replaceEntryEmotions } from './emotions';
@@ -49,7 +49,15 @@ interface EntryRow {
  * another diary.
  */
 interface EntryRowWithMedia extends EntryRow {
-  entry_media?: { storage_path: string; poster_path: string | null; status: string }[];
+  entry_media?: {
+    id: string;
+    kind: string;
+    storage_path: string;
+    poster_path: string | null;
+    duration_ms: number | null;
+    status: string;
+    position: number;
+  }[];
   entry_emotions?: { emotion_id: string }[];
 }
 
@@ -106,6 +114,7 @@ export function fromRow(row: EntryRowWithMedia, slugById?: Map<string, string>):
     body: row.body ?? '',
     mood: row.mood,
     emotions: [],
+    media: [],
     isFavourite: row.is_favourite,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -122,14 +131,19 @@ export function fromRow(row: EntryRowWithMedia, slugById?: Map<string, string>):
       .filter((slug): slug is string => slug !== undefined);
   }
 
-  // Only a finished upload counts. A `pending` row means the bytes may not be
+  // Only finished uploads count. A `pending` row means the bytes may not be
   // there yet, and pointing a second device at a half-written object gives it
   // a broken player rather than an honest "not here yet".
-  const media = row.entry_media?.find((item) => item.status === 'uploaded');
-  if (media !== undefined) {
-    entry.remoteVideoPath = media.storage_path;
-    if (media.poster_path !== null) entry.remotePosterPath = media.poster_path;
-  }
+  entry.media = (row.entry_media ?? [])
+    .filter((item) => item.status === 'uploaded')
+    .sort((a, b) => a.position - b.position)
+    .map((item) => ({
+      id: item.id,
+      kind: (item.kind === 'photo' || item.kind === 'audio' ? item.kind : 'video') as MediaKind,
+      remotePath: item.storage_path,
+      ...(item.poster_path !== null ? { remotePosterPath: item.poster_path } : {}),
+      ...(item.duration_ms !== null ? { durationMs: item.duration_ms } : {}),
+    }));
 
   return entry;
 }
@@ -141,7 +155,7 @@ const COLUMNS =
 const SELECT = COLUMNS;
 
 /** The pull wants the media paths too, in the same round trip. */
-const SELECT_WITH_MEDIA = `${COLUMNS}, entry_media(storage_path, poster_path, status), entry_emotions(emotion_id)`;
+const SELECT_WITH_MEDIA = `${COLUMNS}, entry_media(id, kind, storage_path, poster_path, duration_ms, status, position), entry_emotions(emotion_id)`;
 
 // ---------------------------------------------------------------------------
 // Push

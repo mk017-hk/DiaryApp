@@ -70,6 +70,7 @@ const remoteEntry = (over: Partial<Entry> = {}): Entry => ({
   body: 'From the server.',
   mood: 3,
   emotions: [],
+  media: [],
   isFavourite: false,
   createdAt: '2026-09-01T10:00:00.000Z',
   updatedAt: '2026-09-01T10:00:00.000Z',
@@ -83,6 +84,7 @@ const draft = {
   body: 'Written here.',
   mood: 3,
   emotions: [],
+  media: [],
   isFavourite: false,
 };
 
@@ -236,8 +238,14 @@ describe('media pointers, which only this device knows about', () => {
   it('keeps the local video and poster when a pulled row overwrites the entry', async () => {
     const entry = await createEntry({
       ...draft,
-      videoUri: 'file:///documents/videos/clip.mov',
-      posterUri: 'file:///documents/posters/clip.jpg',
+      media: [
+        {
+          id: 'media-1',
+          kind: 'video',
+          uri: 'file:///documents/videos/clip.mov',
+          posterUri: 'file:///documents/posters/clip.jpg',
+        },
+      ],
     });
     await syncEntries(remote);
 
@@ -260,8 +268,8 @@ describe('media pointers, which only this device knows about', () => {
 
     const stored = (await listEntries())[0];
     expect(stored?.body).toEqual('Edited elsewhere.');
-    expect(stored?.videoUri).toEqual('file:///documents/videos/clip.mov');
-    expect(stored?.posterUri).toEqual('file:///documents/posters/clip.jpg');
+    expect(stored?.media[0]?.uri).toEqual('file:///documents/videos/clip.mov');
+    expect(stored?.media[0]?.posterUri).toEqual('file:///documents/posters/clip.jpg');
   });
 
   it('keeps a local transcript the server does not carry', async () => {

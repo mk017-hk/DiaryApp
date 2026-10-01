@@ -125,9 +125,7 @@ export default function ThreadScreen() {
               accessibilityLabel={`Entry from ${longDate(fromDateKey(entry.entryDate))}`}
               style={styles.row}
             >
-              {(entry.videoUri !== undefined || entry.remoteVideoPath !== undefined) && (
-                <VideoPoster posterUri={entry.posterUri} remotePath={entry.remotePosterPath} />
-              )}
+              {entry.media.length > 0 && <VideoPoster item={entry.media[0]} />}
               <View style={styles.rowText}>
                 <Text variant="caption" color="inkTertiary">
                   {longDate(fromDateKey(entry.entryDate))}

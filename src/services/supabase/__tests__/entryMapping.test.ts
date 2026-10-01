@@ -20,8 +20,14 @@ const entry: Entry = {
   mood: 4,
   emotions: [],
   isFavourite: true,
-  videoUri: 'file:///documents/videos/clip.mov',
-  posterUri: 'file:///documents/posters/clip.jpg',
+  media: [
+    {
+      id: 'media-1',
+      kind: 'video',
+      uri: 'file:///documents/videos/clip.mov',
+      posterUri: 'file:///documents/posters/clip.jpg',
+    },
+  ],
   transcript: 'What I actually said out loud.',
   createdAt: '2026-09-01T09:00:00.000Z',
   updatedAt: '2026-09-01T09:30:00.000Z',
@@ -121,8 +127,7 @@ describe('reading a row back', () => {
   it('carries no media pointers of its own', () => {
     const returned = fromRow(row);
 
-    expect(returned.videoUri).toBeUndefined();
-    expect(returned.posterUri).toBeUndefined();
+    expect(returned.media).toEqual([]);
   });
 });
 

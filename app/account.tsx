@@ -7,7 +7,7 @@ import { space } from '@/design';
 import { AuthNotice, useSession } from '@/features/auth';
 import { AssistantConsent } from '@/features/assistant';
 import { clearEntries, clearThreads, useSync } from '@/features/entries';
-import { deleteAllRecordings } from '@/features/media';
+import { deleteAllCaptured, deleteAllRecordings } from '@/features/media';
 import { useProfile } from '@/features/profile';
 
 /**
@@ -33,6 +33,9 @@ export default function Account() {
     // Leaving one person's diary on the phone for the next person to sign in
     // and find would be the worst bug this app could have.
     await Promise.all([clearEntries(), clearThreads(), deleteAllRecordings(), reset()]);
+    // Photos and voice notes live in their own directories, so they need
+    // clearing alongside the videos or they outlive the diary they belonged to.
+    deleteAllCaptured();
   };
 
   const finishSignOut = () => {

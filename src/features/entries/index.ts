@@ -9,7 +9,13 @@ export {
   onThisDay,
   subscribeToEntries,
   updateEntry,
+  videoOf,
+  photosOf,
+  audioOf,
+  hasSomewhereToPlayFrom,
   type Entry,
+  type EntryMedia,
+  type MediaKind,
   type NewEntry,
 } from './entryStore';
 

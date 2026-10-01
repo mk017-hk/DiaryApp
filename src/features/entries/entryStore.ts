@@ -25,6 +25,40 @@ import { logger } from '@/services/logger';
 
 const KEY = 'entries.v1';
 
+/**
+ * What a diary can hold besides words.
+ *
+ * Video is the one the product is built around, but the concept always listed
+ * four formats and `entry_media` has always been a list with a `kind` and a
+ * `position`. This is that list, on the device.
+ */
+export type MediaKind = 'video' | 'photo' | 'audio';
+
+export interface EntryMedia {
+  /**
+   * Generated on the device, like the entry's own id.
+   *
+   * It is what the bucket path is keyed on, so a retry overwrites rather than
+   * duplicating, and what `markMediaUploaded` names when it records where a
+   * file ended up.
+   */
+  id: string;
+  kind: MediaKind;
+  /** The file on this phone, if this is the phone it was made on. */
+  uri?: string;
+  /** A still, so a list never has to stream. Video only. */
+  posterUri?: string;
+  /**
+   * Where it lives in the bucket.
+   *
+   * How a second device plays something it never recorded: no file, so it
+   * mints a signed URL from this instead. Bookkeeping about a remote fact.
+   */
+  remotePath?: string;
+  remotePosterPath?: string;
+  durationMs?: number;
+}
+
 export interface Entry {
   id: string;
   /** 'YYYY-MM-DD' — the day the moment belongs to. */
@@ -33,10 +67,8 @@ export interface Entry {
   body: string;
   mood: number | null;
   emotions: string[];
-  /** Local file URI of a recorded video, if there is one. */
-  videoUri?: string;
-  /** First frame, for lists. Video is never streamed just to render a row. */
-  posterUri?: string;
+  /** Video, photos and voice notes, in the order they were added. */
+  media: EntryMedia[];
   /** What was said, once transcription exists. Separate from the note. */
   transcript?: string;
 
@@ -58,17 +90,6 @@ export interface Entry {
    * screens set.
    */
   aiExcluded?: boolean;
-
-  /**
-   * Where the recording lives in the bucket.
-   *
-   * How a second device plays a video it never recorded: it has no file, so it
-   * mints a signed URL from this instead. Bookkeeping about a remote fact,
-   * kept here because this is where the entry is — never sent to the server,
-   * which already knows.
-   */
-  remoteVideoPath?: string;
-  remotePosterPath?: string;
 
   isFavourite: boolean;
   createdAt: string;
@@ -96,6 +117,57 @@ export interface Entry {
 
 export type NewEntry = Omit<Entry, 'id' | 'createdAt' | 'updatedAt' | 'deletedAt' | 'unsynced'>;
 
+/** The video on an entry, if it has one. Most screens want exactly this. */
+export function videoOf(entry: Entry): EntryMedia | undefined {
+  return entry.media.find((item) => item.kind === 'video');
+}
+
+export function photosOf(entry: Entry): EntryMedia[] {
+  return entry.media.filter((item) => item.kind === 'photo');
+}
+
+export function audioOf(entry: Entry): EntryMedia | undefined {
+  return entry.media.find((item) => item.kind === 'audio');
+}
+
+/** Whether a piece of media is reachable at all, here or in the bucket. */
+export function hasSomewhereToPlayFrom(item: EntryMedia): boolean {
+  return item.uri !== undefined || item.remotePath !== undefined;
+}
+
+/**
+ * The shape entries had before media became a list.
+ *
+ * Kept only so a phone that has been sitting on an older build does not lose
+ * the video on every entry the first time it reads them back.
+ */
+interface LegacyMediaFields {
+  videoUri?: string;
+  posterUri?: string;
+  remoteVideoPath?: string;
+  remotePosterPath?: string;
+}
+
+function migrateMedia(entry: Entry & LegacyMediaFields): EntryMedia[] {
+  if (Array.isArray(entry.media)) return entry.media;
+
+  const legacy = entry.videoUri ?? entry.remoteVideoPath;
+  if (legacy === undefined) return [];
+
+  return [
+    {
+      // Keyed on the entry, which is what the old bucket path used, so an
+      // already-uploaded video keeps pointing at the object it is in.
+      id: entry.id,
+      kind: 'video',
+      ...(entry.videoUri !== undefined ? { uri: entry.videoUri } : {}),
+      ...(entry.posterUri !== undefined ? { posterUri: entry.posterUri } : {}),
+      ...(entry.remoteVideoPath !== undefined ? { remotePath: entry.remoteVideoPath } : {}),
+      ...(entry.remotePosterPath !== undefined ? { remotePosterPath: entry.remotePosterPath } : {}),
+    },
+  ];
+}
+
 /** Everything on the device, tombstones included. Only sync wants these. */
 async function readAll(): Promise<Entry[]> {
   try {
@@ -104,8 +176,9 @@ async function readAll(): Promise<Entry[]> {
     const parsed = JSON.parse(raw) as unknown;
     if (!Array.isArray(parsed)) return [];
 
-    return (parsed as Entry[]).map((entry) => ({
+    return (parsed as (Entry & LegacyMediaFields)[]).map((entry) => ({
       ...entry,
+      media: migrateMedia(entry),
       // An entry stored before sync existed has never been pushed.
       unsynced: entry.unsynced ?? true,
     }));
@@ -294,17 +367,9 @@ export async function applyRemote(incoming: Entry[]): Promise<void> {
 
     byId.set(remote.id, {
       ...remote,
-      ...(local?.videoUri !== undefined ? { videoUri: local.videoUri } : {}),
-      ...(local?.posterUri !== undefined ? { posterUri: local.posterUri } : {}),
+      media: mergeMedia(local?.media ?? [], remote.media),
       ...(local?.transcript !== undefined && remote.transcript === undefined
         ? { transcript: local.transcript }
-        : {}),
-      // The server does know these, so it wins where it has an opinion.
-      ...(remote.remoteVideoPath === undefined && local?.remoteVideoPath !== undefined
-        ? { remoteVideoPath: local.remoteVideoPath }
-        : {}),
-      ...(remote.remotePosterPath === undefined && local?.remotePosterPath !== undefined
-        ? { remotePosterPath: local.remotePosterPath }
         : {}),
       unsynced: false,
     });
@@ -322,30 +387,79 @@ export async function applyRemote(incoming: Entry[]): Promise<void> {
  * beat a real edit made on another device.
  */
 export async function markMediaUploaded(
-  id: string,
+  entryId: string,
+  mediaId: string,
   paths: { storagePath: string; posterPath: string | null },
 ): Promise<void> {
   const entries = await readAll();
-  const index = entries.findIndex((entry) => entry.id === id);
+  const index = entries.findIndex((entry) => entry.id === entryId);
   if (index === -1) return;
 
+  const entry = entries[index]!;
   entries[index] = {
-    ...entries[index]!,
-    remoteVideoPath: paths.storagePath,
-    ...(paths.posterPath !== null ? { remotePosterPath: paths.posterPath } : {}),
+    ...entry,
+    media: entry.media.map((item) =>
+      item.id === mediaId
+        ? {
+            ...item,
+            remotePath: paths.storagePath,
+            ...(paths.posterPath !== null ? { remotePosterPath: paths.posterPath } : {}),
+          }
+        : item,
+    ),
   };
 
   await writeAll(entries);
 }
 
 /** Entries whose recording is still only on this phone. */
-export async function entriesNeedingUpload(): Promise<Entry[]> {
-  return (await readAll()).filter(
-    (entry) =>
-      entry.deletedAt === undefined &&
-      entry.videoUri !== undefined &&
-      entry.remoteVideoPath === undefined,
-  );
+export interface PendingUpload {
+  entryId: string;
+  item: EntryMedia;
+}
+
+/** Every file that is still only on this phone, oldest entry first. */
+export async function mediaNeedingUpload(): Promise<PendingUpload[]> {
+  const entries = await readAll();
+
+  return entries
+    .filter((entry) => entry.deletedAt === undefined)
+    .flatMap((entry) =>
+      entry.media
+        .filter((item) => item.uri !== undefined && item.remotePath === undefined)
+        .map((item) => ({ entryId: entry.id, item })),
+    );
+}
+
+/**
+ * Merges a pulled entry's media with what this device already knows.
+ *
+ * Both halves carry something the other does not. The server knows the bucket
+ * paths and is authoritative about them; the device knows where the file
+ * actually sits on this phone, which the server has no opinion about and never
+ * will. Taking either side wholesale loses the other — and the device that
+ * recorded the video would be the one to lose it.
+ */
+function mergeMedia(local: EntryMedia[], remote: EntryMedia[]): EntryMedia[] {
+  const byId = new Map(local.map((item) => [item.id, item]));
+
+  for (const item of remote) {
+    const here = byId.get(item.id);
+    byId.set(item.id, {
+      ...item,
+      ...(here?.uri !== undefined ? { uri: here.uri } : {}),
+      ...(here?.posterUri !== undefined ? { posterUri: here.posterUri } : {}),
+      // A local path the server has not caught up with yet still beats nothing.
+      ...(item.remotePath === undefined && here?.remotePath !== undefined
+        ? { remotePath: here.remotePath }
+        : {}),
+      ...(item.remotePosterPath === undefined && here?.remotePosterPath !== undefined
+        ? { remotePosterPath: here.remotePosterPath }
+        : {}),
+    });
+  }
+
+  return [...byId.values()];
 }
 
 /** Marks rows the server has accepted, so they stop being pushed. */

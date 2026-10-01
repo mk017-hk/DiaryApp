@@ -3,15 +3,9 @@ import { Image, StyleSheet, View } from 'react-native';
 
 import { PressableScale, Skeleton, Text } from '@/components';
 import { useTheme } from '@/design';
+import type { EntryMedia } from '@/features/entries/entryStore';
 
 import { useMediaSource } from './useMediaSource';
-
-interface VideoNoteProps {
-  /** The file on this device, if this is the phone that recorded it. */
-  uri?: string | undefined;
-  /** Where it lives in the bucket, for every other device. */
-  remotePath?: string | undefined;
-}
 
 /**
  * Watching a recorded entry back.
@@ -20,9 +14,9 @@ interface VideoNoteProps {
  * memory should be something you choose, not something that begins talking at
  * you — particularly if someone else is in the room.
  */
-export function VideoNote({ uri, remotePath }: VideoNoteProps) {
+export function VideoNote({ item }: { item: EntryMedia }) {
   const theme = useTheme();
-  const source = useMediaSource(uri, remotePath);
+  const source = useMediaSource(item.uri, item.remotePath);
 
   const player = useVideoPlayer(source.state === 'ready' ? source.uri : null, (instance) => {
     instance.loop = false;
@@ -64,26 +58,28 @@ export function VideoNote({ uri, remotePath }: VideoNoteProps) {
 }
 
 /**
- * A still, for lists. Renders the poster if there is one, and a quiet
- * placeholder if the frame could not be extracted.
+ * A still, for lists.
+ *
+ * Renders the poster frame for a video and the image itself for a photo, and a
+ * quiet placeholder while either is being fetched — a row in a list is the
+ * wrong place for a spinner, which would make a calm timeline flicker every
+ * time it scrolled.
  */
 export function VideoPoster({
-  posterUri,
-  remotePath,
+  item,
   onPress,
-  label = 'Play recording',
+  label = 'Open',
 }: {
-  posterUri?: string | undefined;
-  remotePath?: string | undefined;
+  item: EntryMedia | undefined;
   onPress?: () => void;
   label?: string;
 }) {
   const theme = useTheme();
-  const source = useMediaSource(posterUri, remotePath);
 
-  // The placeholder covers both "no still was ever made" and "still fetching
-  // one". A row in a list is the wrong place for a spinner: it would make a
-  // quiet timeline flicker every time it scrolled past.
+  // A photo is its own thumbnail; a video has a separate poster frame.
+  const localStill = item?.kind === 'photo' ? item.uri : item?.posterUri;
+  const remoteStill = item?.kind === 'photo' ? item.remotePath : item?.remotePosterPath;
+  const source = useMediaSource(localStill, remoteStill);
   const resolved = source.state === 'ready' ? source.uri : undefined;
 
   const content =
@@ -113,9 +109,45 @@ export function VideoPoster({
   );
 }
 
+/** A photo, at full width. */
+export function PhotoNote({ item }: { item: EntryMedia }) {
+  const theme = useTheme();
+  const source = useMediaSource(item.uri, item.remotePath);
+
+  if (source.state === 'resolving') {
+    return <Skeleton style={[styles.photo, { borderRadius: theme.radius.lg }]} />;
+  }
+
+  if (source.state === 'unavailable') {
+    return (
+      <View
+        style={[
+          styles.missing,
+          { backgroundColor: theme.colors.surfaceMuted, borderRadius: theme.radius.lg },
+        ]}
+      >
+        <Text variant="caption" color="inkSecondary" align="center">
+          This photo is not on this device.
+        </Text>
+      </View>
+    );
+  }
+
+  return (
+    <Image
+      source={{ uri: source.uri }}
+      style={[styles.photo, { borderRadius: theme.radius.lg }]}
+      resizeMode="cover"
+      accessibilityLabel="A photo from this entry"
+      accessibilityIgnoresInvertColors
+    />
+  );
+}
+
 const styles = StyleSheet.create({
   frame: { aspectRatio: 3 / 4, overflow: 'hidden', width: '100%' },
   missing: { alignItems: 'center', justifyContent: 'center', minHeight: 120, padding: 24 },
+  photo: { aspectRatio: 4 / 3, width: '100%' },
   playDot: { borderRadius: 5, height: 10, width: 10 },
   poster: { alignItems: 'center', height: 64, justifyContent: 'center', width: 64 },
   video: { height: '100%', width: '100%' },

@@ -11,7 +11,7 @@ import type { ReactNode } from 'react';
 import { AppState } from 'react-native';
 
 import { useSession } from '@/features/auth';
-import { deleteRecording } from '@/features/media';
+import { deleteCaptured, deleteRecording } from '@/features/media';
 import { logger } from '@/services/logger';
 import { AppError } from '@/services/supabase/errors';
 import {
@@ -21,11 +21,7 @@ import {
   type SyncContext,
 } from '@/services/supabase/entries';
 import { forgetEmotions } from '@/services/supabase/emotions';
-import {
-  forgetSignedUrls,
-  reconcilePendingMedia,
-  uploadRecording,
-} from '@/services/supabase/media';
+import { forgetSignedUrls, reconcilePendingMedia, uploadMedia } from '@/services/supabase/media';
 import { pullThreads, pushThreads } from '@/services/supabase/threads';
 
 import { allEntries, subscribeToEntries, unsyncedEntries } from './entryStore';
@@ -64,13 +60,22 @@ function remoteFor(context: SyncContext): SyncRemote {
   return {
     push: (entries) => pushEntries(entries, context),
     pull: (since) => pullEntries(since, context),
-    uploadMedia: (entry) =>
-      entry.videoUri === undefined
+    uploadMedia: ({ entryId, item }) =>
+      item.uri === undefined
         ? Promise.resolve({
             ok: false as const,
-            error: new AppError('not_found', 'That recording is no longer on this device.'),
+            error: new AppError('not_found', 'That file is no longer on this device.'),
           })
-        : uploadRecording(entry.id, entry.videoUri, entry.posterUri, context),
+        : uploadMedia(
+            {
+              entryId,
+              mediaId: item.id,
+              kind: item.kind,
+              uri: item.uri,
+              posterUri: item.posterUri,
+            },
+            context,
+          ),
     pushThreads: (threads) => pushThreads(threads, context),
     pullThreads: () => pullThreads(context),
   };
@@ -142,10 +147,19 @@ export function SyncProvider({ children }: { children: ReactNode }) {
     setState('syncing');
     const report = await syncEntries(remoteFor(context), {
       onRemoved: async (ids) => {
-        // Recorded video does not cascade from anything; if the entry is
-        // going, the file has to go with it or it sits on the phone forever
-        // with nothing pointing at it.
-        await Promise.all(ids.map((id) => deleteRecording(id)));
+        // Nothing on disk cascades from anything; if the entry is going, every
+        // file has to go with it or it sits on the phone forever with nothing
+        // pointing at it. Read the entries *before* they are purged — after,
+        // there is nothing left to say which files were theirs.
+        const going = new Set(ids);
+        const doomed = (await allEntries()).filter((entry) => going.has(entry.id));
+
+        for (const entry of doomed) {
+          for (const item of entry.media) {
+            if (item.kind === 'video') await deleteRecording(item.id);
+            else if (item.uri !== undefined) deleteCaptured(item.uri);
+          }
+        }
       },
     });
 
@@ -172,11 +186,18 @@ export function SyncProvider({ children }: { children: ReactNode }) {
       const context = contextRef.current;
       if (context === null) return;
 
+      // Keyed on the media id, which is also the bucket object's name, so a
+      // row stuck in 'pending' can be matched back to the file that was being
+      // uploaded when the app died.
       const onDevice = new Map(
-        (await allEntries()).map((entry) => [entry.id, entry.videoUri] as const),
+        (await allEntries()).flatMap((entry) =>
+          entry.media
+            .filter((item) => item.uri !== undefined)
+            .map((item) => [item.id, { kind: item.kind, uri: item.uri as string }] as const),
+        ),
       );
 
-      await reconcilePendingMedia(context, (entryId) => onDevice.get(entryId));
+      await reconcilePendingMedia(context, (mediaId) => onDevice.get(mediaId));
     })();
   }, [diaryId, syncNow]);
 

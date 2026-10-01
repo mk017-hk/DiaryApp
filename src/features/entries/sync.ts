@@ -4,12 +4,13 @@ import type { AppError } from '@/services/supabase/errors';
 
 import {
   applyRemote,
-  entriesNeedingUpload,
   markMediaUploaded,
   markSynced,
+  mediaNeedingUpload,
   purgeEntries,
   unsyncedEntries,
   type Entry,
+  type PendingUpload,
 } from './entryStore';
 import { applyRemoteThreads, markThreadsSynced, unsyncedThreads, type Thread } from './threadStore';
 
@@ -55,7 +56,7 @@ export interface SyncRemote {
    * Optional so the text path can be tested and reasoned about on its own —
    * and so a build with no media pipeline is a smaller thing, not a broken one.
    */
-  uploadMedia?(entry: Entry): Promise<RemoteResult<UploadedMedia>>;
+  uploadMedia?(pending: PendingUpload): Promise<RemoteResult<UploadedMedia>>;
   /**
    * Threads, both directions.
    *
@@ -282,14 +283,14 @@ async function syncThreads(remote: SyncRemote): Promise<number> {
 async function uploadPendingMedia(remote: SyncRemote): Promise<number> {
   if (remote.uploadMedia === undefined) return 0;
 
-  const waiting = await entriesNeedingUpload();
+  const waiting = await mediaNeedingUpload();
   let uploaded = 0;
 
-  for (const entry of waiting) {
-    const result = await remote.uploadMedia(entry);
+  for (const pending of waiting) {
+    const result = await remote.uploadMedia(pending);
     if (!result.ok) break;
 
-    await markMediaUploaded(entry.id, result.value);
+    await markMediaUploaded(pending.entryId, pending.item.id, result.value);
     uploaded += 1;
   }
 

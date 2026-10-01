@@ -6,15 +6,18 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Button, DiaryPage, ErrorState, PressableScale, Text } from '@/components';
 import { space, useTheme } from '@/design';
 import {
+  audioOf,
   deleteEntry,
   EmotionPicker,
   getEntry,
   getThread,
+  photosOf,
   updateEntry,
+  videoOf,
   type Entry,
   type Thread,
 } from '@/features/entries';
-import { deleteRecording, VideoNote } from '@/features/media';
+import { deleteRecording, PhotoNote, VideoNote, VoiceNote } from '@/features/media';
 import { fromDateKey, fullDate, longDate } from '@/lib/date';
 
 const MOOD_LABELS: Record<number, string> = {
@@ -73,6 +76,9 @@ export default function EntryDetail() {
   }
 
   const date = fromDateKey(entry.entryDate);
+  const video = videoOf(entry);
+  const voice = audioOf(entry);
+  const photos = photosOf(entry);
 
   const toggleFavourite = async () => {
     const updated = await updateEntry(entry.id, { isFavourite: !entry.isFavourite });
@@ -137,11 +143,27 @@ export default function EntryDetail() {
           )}
         </View>
 
-        {/* Either half is enough to show a player: this phone has the file, or
-            the account has it and a signed URL will fetch it. */}
-        {(entry.videoUri !== undefined || entry.remoteVideoPath !== undefined) && (
+        {/* Video first, then the voice note, then photos — the order they
+            were likely made in, and the order of how much attention each
+            wants. Either a local file or a bucket path is enough to play
+            from; `useMediaSource` prefers the file. */}
+        {video !== undefined && (
           <View style={styles.videoNote}>
-            <VideoNote uri={entry.videoUri} remotePath={entry.remoteVideoPath} />
+            <VideoNote item={video} />
+          </View>
+        )}
+
+        {voice !== undefined && (
+          <View style={styles.attachment}>
+            <VoiceNote item={voice} />
+          </View>
+        )}
+
+        {photos.length > 0 && (
+          <View style={styles.photos}>
+            {photos.map((photo) => (
+              <PhotoNote key={photo.id} item={photo} />
+            ))}
           </View>
         )}
 
@@ -178,6 +200,8 @@ const styles = StyleSheet.create({
   footer: { marginTop: space.xxxl },
   header: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
   threadLink: { alignSelf: 'flex-start', paddingVertical: space.xxs },
+  attachment: { marginTop: space.lg },
+  photos: { gap: space.sm, marginTop: space.lg },
   videoNote: { marginTop: space.lg },
   writing: { fontSize: 19, lineHeight: 32, marginTop: space.lg },
 });

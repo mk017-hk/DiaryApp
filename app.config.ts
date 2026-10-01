@@ -41,6 +41,49 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
         dark: { backgroundColor: '#14110F' },
       },
     ],
+    /**
+     * Permission copy, written out rather than left to the defaults.
+     *
+     * iOS does not refuse a camera or microphone call that has no usage string
+     * in the binary — it kills the app. Expo Go carries its own, so the absence
+     * only shows up in the first real build, on the first tap of Record.
+     *
+     * The wording matters beyond compliance. This is the one sentence someone
+     * reads before handing an app their camera, and the honest version of it is
+     * short, says what the recording is for, and says where it goes. "Allow
+     * Diary to access your camera" says none of that.
+     */
+    [
+      'expo-camera',
+      {
+        cameraPermission:
+          'Diary uses the camera only when you record a video entry. Your recordings stay in your diary.',
+        microphonePermission:
+          'Diary uses the microphone only while you are recording. Nothing is ever recorded in the background.',
+        // Nothing in the app scans a barcode, and the scanner is a large chunk
+        // of binary to carry for a feature a diary will never have.
+        barcodeScannerEnabled: false,
+      },
+    ],
+    [
+      'expo-audio',
+      {
+        microphonePermission:
+          'Diary uses the microphone only when you are recording a voice note. Nothing is ever recorded in the background.',
+        // Both deliberately off. Background recording is the capability a diary
+        // should be least able to claim, and background playback would declare
+        // an audio background mode the app has no use for.
+        enableBackgroundRecording: false,
+        enableBackgroundPlayback: false,
+      },
+    ],
+    [
+      'expo-image-picker',
+      {
+        photosPermission:
+          'Diary asks for a photo only when you choose to attach one to an entry. It never reads the rest of your library.',
+      },
+    ],
   ],
   experiments: {
     typedRoutes: true,

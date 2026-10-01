@@ -7,6 +7,7 @@ import {
   deleteEntry,
   listEntries,
   type Entry,
+  type PendingUpload,
 } from '../entryStore';
 import {
   __testing,
@@ -34,8 +35,9 @@ jest.mock('expo-crypto', () => {
 const failure = { kind: 'network', userMessage: 'offline' } as never;
 
 class FakeRemote implements SyncRemote {
+  /** Media ids, in the order they were sent. */
   uploads: string[] = [];
-  uploadResponse: ((entry: Entry) => RemoteResult<UploadedMedia>) | null = null;
+  uploadResponse: ((pending: PendingUpload) => RemoteResult<UploadedMedia>) | null = null;
   pullResponse: RemoteResult<PullOutcome> = { ok: true, value: { entries: [], watermark: null } };
 
   async push(entries: Entry[]): Promise<RemoteResult<PushOutcome>> {
@@ -53,14 +55,14 @@ class FakeRemote implements SyncRemote {
     return this.pullResponse;
   }
 
-  async uploadMedia(entry: Entry): Promise<RemoteResult<UploadedMedia>> {
-    this.uploads.push(entry.id);
-    if (this.uploadResponse !== null) return this.uploadResponse(entry);
+  async uploadMedia(pending: PendingUpload): Promise<RemoteResult<UploadedMedia>> {
+    this.uploads.push(pending.item.id);
+    if (this.uploadResponse !== null) return this.uploadResponse(pending);
     return {
       ok: true,
       value: {
-        storagePath: `diary/${entry.id}/clip.mov`,
-        posterPath: `diary/${entry.id}/still.jpg`,
+        storagePath: `diary/${pending.entryId}/${pending.item.id}.mov`,
+        posterPath: `diary/${pending.entryId}/${pending.item.id}-poster.jpg`,
       },
     };
   }
@@ -73,8 +75,14 @@ const videoDraft = {
   mood: 3,
   emotions: [],
   isFavourite: false,
-  videoUri: 'file:///documents/videos/clip.mov',
-  posterUri: 'file:///documents/posters/clip.jpg',
+  media: [
+    {
+      id: 'media-1',
+      kind: 'video' as const,
+      uri: 'file:///documents/videos/clip.mov',
+      posterUri: 'file:///documents/posters/clip.jpg',
+    },
+  ],
 };
 
 let remote: FakeRemote;
@@ -91,8 +99,9 @@ describe('sending a recording', () => {
 
     const report = await syncEntries(remote);
 
-    expect(remote.uploads).toEqual([entry.id]);
+    expect(remote.uploads).toEqual(['media-1']);
     expect(report.uploaded).toEqual(1);
+    expect(entry.id).toBeTruthy();
   });
 
   it('records where it ended up, so it is not sent twice', async () => {
@@ -100,18 +109,17 @@ describe('sending a recording', () => {
     await syncEntries(remote);
 
     const stored = (await listEntries())[0];
-    expect(stored?.remoteVideoPath).toEqual(`diary/${entry.id}/clip.mov`);
-    expect(stored?.remotePosterPath).toEqual(`diary/${entry.id}/still.jpg`);
+    expect(stored?.media[0]?.remotePath).toEqual(`diary/${entry.id}/media-1.mov`);
+    expect(stored?.media[0]?.remotePosterPath).toEqual(`diary/${entry.id}/media-1-poster.jpg`);
 
     __testing.reset();
     await syncEntries(remote);
 
-    expect(remote.uploads).toEqual([entry.id]);
+    expect(remote.uploads).toEqual(['media-1']);
   });
 
   it('ignores entries with nothing to upload', async () => {
-    const { videoUri: _v, posterUri: _p, ...textOnly } = videoDraft;
-    await createEntry(textOnly);
+    await createEntry({ ...videoDraft, media: [] });
 
     await syncEntries(remote);
 
@@ -136,7 +144,7 @@ describe('sending a recording', () => {
     const report = await syncEntries(remote);
 
     expect(report.uploaded).toEqual(0);
-    expect((await listEntries())[0]?.remoteVideoPath).toBeUndefined();
+    expect((await listEntries())[0]?.media[0]?.remotePath).toBeUndefined();
   });
 
   // A hundred megabytes over a mobile connection: three at once is three
@@ -199,8 +207,14 @@ describe('a device that never held the file', () => {
             isFavourite: false,
             createdAt: '2026-09-01T10:00:00.000Z',
             updatedAt: '2026-09-01T10:00:00.000Z',
-            remoteVideoPath: 'diary/from-elsewhere/clip.mov',
-            remotePosterPath: 'diary/from-elsewhere/still.jpg',
+            media: [
+              {
+                id: 'elsewhere-1',
+                kind: 'video' as const,
+                remotePath: 'diary/from-elsewhere/clip.mov',
+                remotePosterPath: 'diary/from-elsewhere/still.jpg',
+              },
+            ],
             unsynced: false,
           },
         ],
@@ -211,8 +225,8 @@ describe('a device that never held the file', () => {
     await syncEntries(remote);
 
     const stored = (await listEntries())[0];
-    expect(stored?.videoUri).toBeUndefined();
-    expect(stored?.remoteVideoPath).toEqual('diary/from-elsewhere/clip.mov');
+    expect(stored?.media[0]?.uri).toBeUndefined();
+    expect(stored?.media[0]?.remotePath).toEqual('diary/from-elsewhere/clip.mov');
   });
 
   it('does not then try to upload a file it does not have', async () => {
@@ -230,7 +244,13 @@ describe('a device that never held the file', () => {
             isFavourite: false,
             createdAt: '2026-09-01T10:00:00.000Z',
             updatedAt: '2026-09-01T10:00:00.000Z',
-            remoteVideoPath: 'diary/from-elsewhere/clip.mov',
+            media: [
+              {
+                id: 'elsewhere-1',
+                kind: 'video' as const,
+                remotePath: 'diary/from-elsewhere/clip.mov',
+              },
+            ],
             unsynced: false,
           },
         ],
@@ -254,13 +274,13 @@ describe('a device that never held the file', () => {
         ...entry,
         body: 'Edited on the other phone.',
         updatedAt: '2099-01-01T00:00:00.000Z',
-        remoteVideoPath: `diary/${entry.id}/clip.mov`,
+        media: [{ id: 'media-1', kind: 'video', remotePath: `diary/${entry.id}/media-1.mov` }],
         unsynced: false,
       },
     ]);
 
     const stored = (await listEntries())[0];
-    expect(stored?.videoUri).toEqual('file:///documents/videos/clip.mov');
-    expect(stored?.remoteVideoPath).toEqual(`diary/${entry.id}/clip.mov`);
+    expect(stored?.media[0]?.uri).toEqual('file:///documents/videos/clip.mov');
+    expect(stored?.media[0]?.remotePath).toEqual(`diary/${entry.id}/media-1.mov`);
   });
 });
