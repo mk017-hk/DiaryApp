@@ -22,6 +22,7 @@ import {
 } from '@/services/supabase/entries';
 import { forgetEmotions } from '@/services/supabase/emotions';
 import { forgetSignedUrls, reconcilePendingMedia, uploadMedia } from '@/services/supabase/media';
+import { pullMutes, pushMutes } from '@/services/supabase/mutes';
 import { pullThreads, pushThreads } from '@/services/supabase/threads';
 
 import { allEntries, subscribeToEntries, unsyncedEntries } from './entryStore';
@@ -78,6 +79,8 @@ function remoteFor(context: SyncContext): SyncRemote {
           ),
     pushThreads: (threads) => pushThreads(threads, context),
     pullThreads: () => pullThreads(context),
+    pushMutes: (mutes) => pushMutes(mutes, context),
+    pullMutes: () => pullMutes(context),
   };
 }
 

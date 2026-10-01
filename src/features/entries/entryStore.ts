@@ -4,6 +4,9 @@ import * as Crypto from 'expo-crypto';
 import { toDateKey } from '@/lib/date';
 import { logger } from '@/services/logger';
 
+import { isQuietDate } from './muteStore';
+import { listThreads } from './threadStore';
+
 /**
  * Entries, on the device.
  *
@@ -90,6 +93,15 @@ export interface Entry {
    * screens set.
    */
   aiExcluded?: boolean;
+
+  /**
+   * Never handed back as a memory.
+   *
+   * Deliberately not the same flag as `aiExcluded`, because they are not the
+   * same sentence. "Never read this" and "never bring this back to me" are
+   * both reasonable on their own, and so is either without the other.
+   */
+  resurfaceExcluded?: boolean;
 
   isFavourite: boolean;
   createdAt: string;
@@ -308,14 +320,35 @@ export async function clearEntries(): Promise<void> {
   await AsyncStorage.removeItem(KEY);
 }
 
-/** Entries from this day in previous years. */
+/**
+ * Entries from this day in previous years, minus everything she asked to be
+ * left out of.
+ *
+ * Three mutes apply, and they are different requests: this entry, this story,
+ * these dates. The same three are enforced in `resurfacing_candidates` in SQL,
+ * because the scheduled job that will eventually send the notification is not
+ * this app — but the device is the authority for what the screens show, so the
+ * rules have to hold in both places or the card and the notification disagree.
+ *
+ * A quiet date suppresses the whole day rather than part of it. That is
+ * deliberately blunt: a mute that returned "some of it" would be a mute that
+ * still surprises her.
+ */
 export async function onThisDay(today: Date = new Date()): Promise<Entry[]> {
+  if (await isQuietDate(today)) return [];
+
   const month = today.getMonth();
   const day = today.getDate();
   const todayKey = toDateKey(today);
+  const muted = new Set(
+    (await listThreads()).filter((thread) => thread.resurfaceMuted === true).map(({ id }) => id),
+  );
 
   return (await readVisible()).filter((entry) => {
     if (entry.entryDate === todayKey) return false;
+    if (entry.resurfaceExcluded === true) return false;
+    if (entry.threadId !== undefined && muted.has(entry.threadId)) return false;
+
     const [, m, d] = entry.entryDate.split('-').map(Number);
     return (m ?? 0) - 1 === month && d === day;
   });

@@ -304,6 +304,7 @@ export type Database = {
           location_label: string | null
           mood: number | null
           people: string[] | null
+          resurface_excluded: boolean
           thread_id: string | null
           title: string | null
           updated_at: string
@@ -322,6 +323,7 @@ export type Database = {
           location_label?: string | null
           mood?: number | null
           people?: string[] | null
+          resurface_excluded?: boolean
           thread_id?: string | null
           title?: string | null
           updated_at?: string
@@ -340,6 +342,7 @@ export type Database = {
           location_label?: string | null
           mood?: number | null
           people?: string[] | null
+          resurface_excluded?: boolean
           thread_id?: string | null
           title?: string | null
           updated_at?: string
@@ -397,6 +400,53 @@ export type Database = {
         }
         Relationships: []
       }
+      resurfacing_mutes: {
+        Row: {
+          created_at: string
+          created_by: string
+          diary_id: string
+          from_day: number
+          from_month: number
+          id: string
+          label: string | null
+          to_day: number
+          to_month: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          diary_id: string
+          from_day: number
+          from_month: number
+          id?: string
+          label?: string | null
+          to_day: number
+          to_month: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          diary_id?: string
+          from_day?: number
+          from_month?: number
+          id?: string
+          label?: string | null
+          to_day?: number
+          to_month?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "resurfacing_mutes_diary_id_fkey"
+            columns: ["diary_id"]
+            isOneToOne: false
+            referencedRelation: "diaries"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tags: {
         Row: {
           created_at: string
@@ -433,6 +483,7 @@ export type Database = {
           diary_id: string
           id: string
           is_private: boolean
+          resurface_muted: boolean
           started_on: string
           status: Database["public"]["Enums"]["thread_status"]
           title: string
@@ -444,6 +495,7 @@ export type Database = {
           diary_id: string
           id?: string
           is_private?: boolean
+          resurface_muted?: boolean
           started_on?: string
           status?: Database["public"]["Enums"]["thread_status"]
           title: string
@@ -455,6 +507,7 @@ export type Database = {
           diary_id?: string
           id?: string
           is_private?: boolean
+          resurface_muted?: boolean
           started_on?: string
           status?: Database["public"]["Enums"]["thread_status"]
           title?: string
@@ -489,8 +542,32 @@ export type Database = {
           transcript: string
         }[]
       }
+      date_within_mute: {
+        Args: {
+          check_day: number
+          check_month: number
+          from_day: number
+          from_month: number
+          to_day: number
+          to_month: number
+        }
+        Returns: boolean
+      }
       is_diary_member: { Args: { d: string; u: string }; Returns: boolean }
       is_diary_owner: { Args: { d: string; u: string }; Returns: boolean }
+      resurfacing_candidates: {
+        Args: { on_date?: string }
+        Returns: {
+          body: string
+          diary_id: string
+          entry_date: string
+          entry_id: string
+          mood: number
+          thread_id: string
+          title: string
+          years_ago: number
+        }[]
+      }
       set_assistant_consent: { Args: { enabled: boolean }; Returns: undefined }
       stale_pending_media: {
         Args: { older_than?: string }

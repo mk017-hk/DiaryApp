@@ -36,6 +36,14 @@ export interface Thread {
    * the picker shows.
    */
   isPrivate: boolean;
+  /**
+   * Never resurfaced.
+   *
+   * Separate from `isPrivate`, which hides the story from the assistant. A
+   * thread she does not want read may still be one she wants to remember, and
+   * collapsing the two would take memories away as the price of privacy.
+   */
+  resurfaceMuted?: boolean;
   /** 'YYYY-MM-DD' — when the story starts, which may predate the diary. */
   startedOn: string;
   createdAt: string;

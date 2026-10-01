@@ -12,6 +12,12 @@ import {
   type Entry,
   type PendingUpload,
 } from './entryStore';
+import {
+  applyRemoteQuietDates,
+  markQuietDatesSynced,
+  unsyncedQuietDates,
+  type QuietDates,
+} from './muteStore';
 import { applyRemoteThreads, markThreadsSynced, unsyncedThreads, type Thread } from './threadStore';
 
 /**
@@ -67,6 +73,15 @@ export interface SyncRemote {
    */
   pushThreads?(threads: Thread[]): Promise<RemoteResult<Thread[]>>;
   pullThreads?(): Promise<RemoteResult<Thread[]>>;
+  /**
+   * Quiet dates, both directions.
+   *
+   * Optional like the rest. The push returns the ids the account accepted
+   * rather than rows, because half of what it sends are lifts — and a lifted
+   * mute has no row to come back.
+   */
+  pushMutes?(mutes: QuietDates[]): Promise<RemoteResult<string[]>>;
+  pullMutes?(): Promise<RemoteResult<QuietDates[]>>;
 }
 
 export interface SyncReport {
@@ -79,6 +94,8 @@ export interface SyncReport {
   uploaded: number;
   /** Threads pushed and pulled. */
   threads: number;
+  /** Quiet dates pushed and pulled. */
+  mutes: number;
   error?: AppError;
 }
 
@@ -138,7 +155,7 @@ export async function syncEntries(
   options: SyncOptions = {},
 ): Promise<SyncReport> {
   if (inFlight !== null) {
-    return { status: 'busy', pushed: 0, pulled: 0, removed: 0, uploaded: 0, threads: 0 };
+    return { status: 'busy', pushed: 0, pulled: 0, removed: 0, uploaded: 0, threads: 0, mutes: 0 };
   }
 
   inFlight = runSync(remote, options).finally(() => {
@@ -161,6 +178,15 @@ async function runSync(remote: SyncRemote, options: SyncOptions): Promise<SyncRe
   // belong to it, or the whole push fails on a constraint.
   const threads = await syncThreads(remote);
 
+  // --- quiet dates --------------------------------------------------------
+
+  // Also before entries, and for a reason worth stating: a mute is a boundary,
+  // and a pass that pulled entries first would leave a window in which this
+  // device knows about a memory it does not yet know it was told to leave
+  // alone. The window is small. It is also exactly the window in which the
+  // resurfacing card is drawn on app launch.
+  const mutes = await syncMutes(remote);
+
   // --- push ---------------------------------------------------------------
   const queued = await unsyncedEntries();
 
@@ -176,6 +202,7 @@ async function runSync(remote: SyncRemote, options: SyncOptions): Promise<SyncRe
         removed: 0,
         uploaded: 0,
         threads,
+        mutes,
         error: result.error,
       };
     }
@@ -199,7 +226,16 @@ async function runSync(remote: SyncRemote, options: SyncOptions): Promise<SyncRe
   const pull = await remote.pull(since);
 
   if (!pull.ok) {
-    return { status: 'failed', pushed, pulled: 0, removed, uploaded, threads, error: pull.error };
+    return {
+      status: 'failed',
+      pushed,
+      pulled: 0,
+      removed,
+      uploaded,
+      threads,
+      mutes,
+      error: pull.error,
+    };
   }
 
   const { entries, watermark } = pull.value;
@@ -230,7 +266,7 @@ async function runSync(remote: SyncRemote, options: SyncOptions): Promise<SyncRe
   // nothing pointing at them.
   uploaded = await uploadPendingMedia(remote);
 
-  return { status: 'ok', pushed, pulled: entries.length, removed, uploaded, threads };
+  return { status: 'ok', pushed, pulled: entries.length, removed, uploaded, threads, mutes };
 }
 
 /**
@@ -264,6 +300,45 @@ async function syncThreads(remote: SyncRemote): Promise<number> {
     const result = await remote.pullThreads();
     if (result.ok) {
       await applyRemoteThreads(result.value);
+      touched += result.value.length;
+    }
+  }
+
+  return touched;
+}
+
+/**
+ * Quiet dates, both ways.
+ *
+ * Like threads: no watermark, because there are a handful of these and a full
+ * pull costs one small request. Unlike threads, the pull is authoritative —
+ * absence means lifted elsewhere, which is the only way a lift reaches the
+ * phone that did not make it.
+ *
+ * Failures do not fail the pass, with one consequence worth naming: a mute set
+ * offline protects this device immediately and the other one only once a pass
+ * succeeds. The alternative — refusing to save a mute until the network agrees —
+ * would be worse, since the moment somebody sets one is not a moment to make
+ * them wait.
+ */
+async function syncMutes(remote: SyncRemote): Promise<number> {
+  let touched = 0;
+
+  if (remote.pushMutes !== undefined) {
+    const queued = await unsyncedQuietDates();
+    if (queued.length > 0) {
+      const result = await remote.pushMutes(queued);
+      if (result.ok) {
+        await markQuietDatesSynced(result.value);
+        touched += result.value.length;
+      }
+    }
+  }
+
+  if (remote.pullMutes !== undefined) {
+    const result = await remote.pullMutes();
+    if (result.ok) {
+      await applyRemoteQuietDates(result.value);
       touched += result.value.length;
     }
   }

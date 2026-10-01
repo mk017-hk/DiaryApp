@@ -6,7 +6,7 @@ import { Button, Divider, Field, Screen, Text } from '@/components';
 import { space } from '@/design';
 import { AuthNotice, useSession } from '@/features/auth';
 import { AssistantConsent } from '@/features/assistant';
-import { clearEntries, clearThreads, useSync } from '@/features/entries';
+import { clearEntries, clearQuietDates, clearThreads, useSync } from '@/features/entries';
 import { deleteAllCaptured, deleteAllRecordings } from '@/features/media';
 import { useProfile } from '@/features/profile';
 
@@ -32,7 +32,15 @@ export default function Account() {
     // Entries live on the device, so signing out has to take them with it.
     // Leaving one person's diary on the phone for the next person to sign in
     // and find would be the worst bug this app could have.
-    await Promise.all([clearEntries(), clearThreads(), deleteAllRecordings(), reset()]);
+    await Promise.all([
+      clearEntries(),
+      clearThreads(),
+      // A quiet date says something about its owner that the next person to
+      // sign in on this phone has no business reading.
+      clearQuietDates(),
+      deleteAllRecordings(),
+      reset(),
+    ]);
     // Photos and voice notes live in their own directories, so they need
     // clearing alongside the videos or they outlive the diary they belonged to.
     deleteAllCaptured();
@@ -131,6 +139,15 @@ export default function Account() {
           label="App lock"
           variant="secondary"
           onPress={() => router.push('/security')}
+          fullWidth
+        />
+
+        {/* Not buried. The whole point of this control is that somebody can
+            reach it on a bad afternoon without hunting for it. */}
+        <Button
+          label="Quiet dates"
+          variant="secondary"
+          onPress={() => router.push('/quiet-dates')}
           fullWidth
         />
 

@@ -96,6 +96,20 @@ export default function ThreadScreen() {
             {closed ? ' · closed' : ''}
           </Text>
 
+          {thread.resurfaceMuted === true && (
+            <View
+              style={[
+                styles.privateNote,
+                { backgroundColor: theme.colors.accentWash, borderRadius: theme.radius.md },
+              ]}
+            >
+              <Text variant="caption" color="inkSecondary">
+                Nothing from this thread is resurfaced. It is here when you come looking, and never
+                before.
+              </Text>
+            </View>
+          )}
+
           {thread.isPrivate && (
             <View
               style={[
@@ -155,6 +169,24 @@ export default function ThreadScreen() {
           <Text variant="caption" color="inkTertiary">
             Closing keeps everything. It just stops the thread being offered when you write.
           </Text>
+
+          {/* Separate from closing and separate from private, because it is a
+              separate request. Some stories are ones you want to be able to
+              find and never to be handed. */}
+          <Button
+            label={
+              thread.resurfaceMuted === true
+                ? 'Let this thread resurface again'
+                : 'Never resurface this thread'
+            }
+            variant="ghost"
+            onPress={() => {
+              const next = thread.resurfaceMuted !== true;
+              setThread({ ...thread, resurfaceMuted: next });
+              void updateThread(thread.id, { resurfaceMuted: next });
+            }}
+            fullWidth
+          />
         </View>
       </ScrollView>
     </DiaryPage>

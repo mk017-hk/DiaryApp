@@ -1,6 +1,6 @@
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { Alert, ScrollView, StyleSheet, View } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -8,9 +8,12 @@ import { Button, DiaryPage, PressableScale, Text } from '@/components';
 import { space, useTheme } from '@/design';
 import { AssistantQuestion, dailyPrompt, personalGreeting } from '@/features/assistant';
 import {
+  addQuietDates,
   listEntries,
   onThisDay,
   openThreads,
+  rangeAround,
+  updateEntry,
   useEntryChanges,
   useSync,
   type Entry,
@@ -176,6 +179,7 @@ export default function Today() {
                 key={memory.id}
                 entry={memory}
                 onPress={() => router.push(`/entry/${memory.id}`)}
+                onNotThis={() => offerToStopResurfacing(memory, load, router)}
               />
             ))}
           </View>
@@ -251,27 +255,98 @@ function ThreadRow({
   );
 }
 
-function MemoryCard({ entry, onPress }: { entry: Entry; onPress: () => void }) {
+/**
+ * Offers the two ways to stop this happening.
+ *
+ * Offered *here*, on the card, because this is the moment somebody finds out
+ * they did not want it. A control for it that lived only in settings would mean
+ * the first time it was needed was also the one time it was too late — the
+ * memory has already been read by then.
+ *
+ * Two choices rather than one, because "not this entry" and "not these days"
+ * are different problems and only she knows which she has.
+ */
+function offerToStopResurfacing(
+  entry: Entry,
+  reload: () => void,
+  router: { push: (path: string) => void },
+): void {
+  Alert.alert(
+    'Stop bringing this back?',
+    'Nothing is deleted either way. This only changes what I put in front of you.',
+    [
+      {
+        text: 'Not this entry again',
+        onPress: () => {
+          void (async () => {
+            await updateEntry(entry.id, { resurfaceExcluded: true });
+            reload();
+          })();
+        },
+      },
+      {
+        text: 'Keep this date quiet',
+        onPress: () => {
+          void (async () => {
+            const date = fromDateKey(entry.entryDate);
+            await addQuietDates(rangeAround(date.getMonth() + 1, date.getDate(), 0));
+            reload();
+          })();
+        },
+      },
+      { text: 'More options', onPress: () => router.push('/quiet-dates') },
+      { text: 'Cancel', style: 'cancel' },
+    ],
+  );
+}
+
+function MemoryCard({
+  entry,
+  onPress,
+  onNotThis,
+}: {
+  entry: Entry;
+  onPress: () => void;
+  onNotThis: () => void;
+}) {
   const theme = useTheme();
   const years = yearsAgo(fromDateKey(entry.entryDate));
 
   return (
-    <PressableScale
-      onPress={onPress}
-      haptic="light"
-      accessibilityLabel={`Memory from ${String(years)} years ago`}
+    <View
       style={[
         styles.memory,
         { backgroundColor: theme.colors.accentWash, borderRadius: theme.radius.lg },
       ]}
     >
-      <Text variant="caption" color="inkSecondary">
-        {years === 1 ? 'A year ago today' : `${String(years)} years ago today`}
-      </Text>
-      <Text variant="title3" numberOfLines={3}>
-        {entry.body.length > 0 ? entry.body : 'A moment you recorded'}
-      </Text>
-    </PressableScale>
+      <PressableScale
+        onPress={onPress}
+        haptic="light"
+        accessibilityLabel={`Memory from ${String(years)} years ago`}
+        style={styles.memoryBody}
+      >
+        <Text variant="caption" color="inkSecondary">
+          {years === 1 ? 'A year ago today' : `${String(years)} years ago today`}
+        </Text>
+        <Text variant="title3" numberOfLines={3}>
+          {entry.body.length > 0 ? entry.body : 'A moment you recorded'}
+        </Text>
+      </PressableScale>
+
+      {/* Small, and present on every card. Not a dismissal — a way to say
+          "don't do that again", which is the thing somebody actually wants at
+          the moment they are looking at a memory they did not ask for. */}
+      <PressableScale
+        onPress={onNotThis}
+        haptic="light"
+        accessibilityLabel="Stop bringing this back"
+        style={styles.memoryOut}
+      >
+        <Text variant="caption" color="inkTertiary">
+          Not this
+        </Text>
+      </PressableScale>
+    </View>
   );
 }
 
@@ -307,6 +382,8 @@ const styles = StyleSheet.create({
   headerRight: { alignItems: 'center', flexDirection: 'row', gap: space.sm },
   threadRow: { gap: space.xxs, paddingVertical: space.sm },
   memory: { gap: space.xxs, padding: space.md },
+  memoryBody: { gap: space.xxs },
+  memoryOut: { alignSelf: 'flex-end', paddingHorizontal: space.xxs, paddingTop: space.xs },
   opening: { gap: space.xs, marginTop: space.xs },
   row: { alignItems: 'center', flexDirection: 'row', gap: space.sm, paddingVertical: space.sm },
   rowText: { flex: 1, gap: space.xxs },

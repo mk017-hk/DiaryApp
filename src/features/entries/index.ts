@@ -34,6 +34,18 @@ export {
   type ThreadStatus,
 } from './threadStore';
 
+export {
+  addQuietDates,
+  clearQuietDates,
+  isWithin,
+  listQuietDates,
+  rangeAround,
+  removeQuietDates,
+  subscribeToMutes,
+  type NewQuietDates,
+  type QuietDates,
+} from './muteStore';
+
 export { SyncProvider, useSync } from './SyncProvider';
 export type { SyncState } from './SyncProvider';
 

@@ -29,6 +29,7 @@ interface EntryRow {
   author_id: string;
   thread_id: string | null;
   ai_excluded: boolean;
+  resurface_excluded: boolean;
   body: string | null;
   entry_date: string;
   entry_at: string;
@@ -83,6 +84,7 @@ export function toRow(entry: Entry, context: SyncContext): EntryRow {
     author_id: context.userId,
     thread_id: entry.threadId ?? null,
     ai_excluded: entry.aiExcluded ?? false,
+    resurface_excluded: entry.resurfaceExcluded ?? false,
     body: entry.body,
     entry_date: entry.entryDate,
     entry_at: entry.entryAt,
@@ -124,6 +126,7 @@ export function fromRow(row: EntryRowWithMedia, slugById?: Map<string, string>):
   if (row.deleted_at !== null) entry.deletedAt = row.deleted_at;
   if (row.thread_id !== null) entry.threadId = row.thread_id;
   if (row.ai_excluded) entry.aiExcluded = true;
+  if (row.resurface_excluded) entry.resurfaceExcluded = true;
 
   if (row.entry_emotions !== undefined && slugById !== undefined) {
     entry.emotions = row.entry_emotions

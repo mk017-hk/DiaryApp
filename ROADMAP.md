@@ -11,12 +11,14 @@ except resurfacing is blocked on Phase 1 and Phase 2.
 ## Where the repo actually is
 
 **Built.** Design system with contrast tests. Full Postgres schema with Row
-Level Security and a 25 case two user isolation suite. App lock with PIN,
-biometrics and a privacy cover. Onboarding, Today, calendar, compose with video
-capture, entry detail, security screen. On This Day resurfacing.
+Level Security and a two user isolation suite. App lock with PIN, biometrics and
+a privacy cover. Onboarding, Today, calendar, compose with all four capture
+formats, entry detail, thread screen, security screen. Entry, thread, emotion
+and media sync. The assistant's context rules and consent. On This Day
+resurfacing, with every way of switching it off.
 
-**Not built.** Transcription. The assistant. Future Me. Sharing UI. Billing.
-Notifications. Timeline. Dashboard. Memory movies.
+**Not built.** Transcription. The assistant's model call. Future Me. Sharing UI.
+Billing. Notifications. Timeline. Dashboard. Memory movies.
 
 **The honest gap.** `src/features/assistant/prompts.ts` is a fixed pool of
 sentences chosen by day of month. It has never read an entry. The line that
@@ -203,16 +205,35 @@ as Sign in with Apple: correct as written, unproven until there is a build.
 
 ---
 
-## Phase 3: the rest of capture — partly done
+## Phase 3: the rest of capture ✅ done
 
 **Done:** mood and emotion selection at capture (with `entry_emotions` sync),
-and thread assignment at capture, plus a thread screen and private threads.
-**Not done:** voice notes and photos, which reuse the Phase 5 media pipeline
-and are the smaller half.
+thread assignment at capture, a thread screen and private threads, and then
+photos and voice notes — the four formats the concept promised.
+
+Adding the last two meant changing the shape rather than adding two fields. An
+entry carried one video across four columns, which cannot hold two photos and a
+voice note; it is now `media: EntryMedia[]`, which is the shape `entry_media`
+has had in Postgres since the first migration. The device was the half that
+disagreed.
+
+Two things worth remembering from it. Entries written by an older build are
+migrated on read, keyed on the entry id, because that is what the old bucket
+path used — any other id would make an uploaded video look unsent and send it
+again under a new name. And captures are moved out of the cache directory,
+which iOS empties when storage runs low, into the document directory, named by
+media id so a retried upload overwrites instead of duplicating.
 
 A schema bug surfaced here: `on delete set null` on the composite thread key
 nulled `diary_id` too, which is NOT NULL, so deleting a thread with entries in
 it failed outright. Fixed with a column list on SET NULL.
+
+A second gap surfaced from `expo-doctor` rather than from a test: no config
+plugins and so no iOS usage strings. iOS does not refuse a microphone call
+without one, it kills the app, and Expo Go carries its own — so this would have
+first appeared in the first real build, on the first tap of Record. The strings
+are now written out in `app.config.ts`, with background recording and
+background playback both off.
 
 ### Original plan
 
@@ -303,17 +324,44 @@ the "you were sad Monday, how are you today" behaviour verbatim.
 
 ---
 
-## Phase 6: resurfacing and notifications
+## Phase 6: resurfacing and notifications — the mutes are done
 
-- Move On This Day to a server query using `journal_entries_on_this_day_idx`.
-- `expo-notifications` for the morning question and for a resurfaced memory.
-- **The control that matters.** Let a thread be muted from resurfacing, and let
-  a date range be muted. The concept notes use a miscarriage as the worked
-  example. An unrequested "two years ago today" card can land on someone on the
-  worst morning of their year. The schema already has `is_private` and
-  `ai_excluded`. Expose them at capture time, in plain words, not buried in
-  settings.
-- Default notifications to off, or to one gentle daily prompt at a chosen time.
+**Done: the control that matters.** Resurfacing can now be switched off at
+three grains, because they are three different requests: this entry, this
+story, these dates. All three are enforced twice — in `resurfacing_candidates`
+in SQL, because the scheduled job that will send the notification is not the
+app, and again on the device, because the device is what actually draws the
+card.
+
+The date range is the one a per-entry flag cannot express, and the reason is the
+whole point: the entries it protects against have not been written yet. Someone
+muting the week around a due date is muting next August, and every August after
+it. So a mute is stored as a month and a day at each end rather than as dates —
+storing dates would mean it expiring quietly before the morning it was set up
+for, a bug whose only symptom is the thing it exists to prevent. Ranges may wrap
+the new year.
+
+Where they are offered matters as much as that they exist. "Not this" sits on
+the memory card itself, because the moment somebody finds out they did not want
+a memory is the moment it is in front of them; a control for it that lived only
+in settings would mean the first time it was needed was also the one time it was
+too late. Capture offers both quiet options side by side, the entry screen
+offers it after the fact, the thread screen can mute a whole story, and
+Quiet dates is one tap from the account screen rather than buried.
+
+A mute changes what the app puts in front of you and nothing else. Everything
+written is still there, and still reachable by going to look for it.
+
+**Not done, and blocked:** `expo-notifications` for the morning question and
+for a resurfaced memory needs a development build, so it moves with Phase 4.
+Defaulting notifications to off, or to one gentle prompt at a chosen time, goes
+with it.
+
+**Deliberately not done:** moving On This Day to a server query. The device is
+the authority for reads in this app, and resurfacing is drawn on launch, often
+with no connection. `journal_entries_on_this_day_idx` still earns its place —
+the scheduled notification job will read through `resurfacing_candidates`, which
+is what the index is for.
 
 ---
 

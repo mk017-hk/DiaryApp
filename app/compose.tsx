@@ -75,6 +75,7 @@ export default function Compose() {
   const [emotions, setEmotions] = useState<string[]>([]);
   const [threadId, setThreadId] = useState<string | undefined>(undefined);
   const [aiExcluded, setAiExcluded] = useState(false);
+  const [resurfaceExcluded, setResurfaceExcluded] = useState(false);
   const [saving, setSaving] = useState(false);
 
   // Read once. A screen open past midnight must not silently change which day
@@ -114,6 +115,7 @@ export default function Compose() {
       media,
       ...(threadId !== undefined ? { threadId } : {}),
       ...(aiExcluded ? { aiExcluded: true } : {}),
+      ...(resurfaceExcluded ? { resurfaceExcluded: true } : {}),
       isFavourite: false,
     });
 
@@ -300,26 +302,26 @@ export default function Compose() {
 
           <ThreadPicker selected={threadId} onChange={setThreadId} />
 
-          {/* Offered at the moment it matters, in plain words. One difficult
-              entry inside an otherwise ordinary week should be holdable back
-              without having to mark the whole story private. */}
-          <PressableScale
-            onPress={() => setAiExcluded(!aiExcluded)}
-            haptic="selection"
-            accessibilityLabel="Keep this one to yourself"
-            accessibilityState={{ checked: aiExcluded }}
-            style={[
-              styles.exclude,
-              {
-                backgroundColor: aiExcluded ? theme.colors.accentWash : 'transparent',
-                borderRadius: theme.radius.md,
-              },
-            ]}
-          >
-            <Text variant="caption" color={aiExcluded ? 'accent' : 'inkTertiary'}>
-              {aiExcluded ? '✓ ' : ''}Keep this one to yourself — never read, never asked about
-            </Text>
-          </PressableScale>
+          {/* Both offered at the moment it matters, in plain words. One
+              difficult entry inside an otherwise ordinary week should be
+              holdable back without having to mark the whole story private.
+              Two separate options because they are two separate sentences:
+              "never read this" and "never hand this back to me" are each
+              reasonable without the other. */}
+          <View style={styles.quietOptions}>
+            <QuietOption
+              label="Keep this one to yourself — never read, never asked about"
+              accessibilityLabel="Keep this one to yourself"
+              on={aiExcluded}
+              onPress={() => setAiExcluded(!aiExcluded)}
+            />
+            <QuietOption
+              label="Never bring this one back to me"
+              accessibilityLabel="Never bring this one back to me"
+              on={resurfaceExcluded}
+              onPress={() => setResurfaceExcluded(!resurfaceExcluded)}
+            />
+          </View>
         </ScrollView>
 
         <View style={[styles.footer, { paddingBottom: insets.bottom + space.md }]}>
@@ -348,6 +350,42 @@ export default function Compose() {
         </View>
       </KeyboardAvoidingView>
     </DiaryPage>
+  );
+}
+
+/** One of the two things you can ask the app not to do with an entry. */
+function QuietOption({
+  label,
+  accessibilityLabel,
+  on,
+  onPress,
+}: {
+  label: string;
+  accessibilityLabel: string;
+  on: boolean;
+  onPress: () => void;
+}) {
+  const theme = useTheme();
+
+  return (
+    <PressableScale
+      onPress={onPress}
+      haptic="selection"
+      accessibilityLabel={accessibilityLabel}
+      accessibilityState={{ checked: on }}
+      style={[
+        styles.exclude,
+        {
+          backgroundColor: on ? theme.colors.accentWash : 'transparent',
+          borderRadius: theme.radius.md,
+        },
+      ]}
+    >
+      <Text variant="caption" color={on ? 'accent' : 'inkTertiary'}>
+        {on ? '✓ ' : ''}
+        {label}
+      </Text>
+    </PressableScale>
   );
 }
 
@@ -458,9 +496,9 @@ const styles = StyleSheet.create({
   close: { padding: space.xxs },
   photoWrap: { gap: space.xxs },
   photos: { gap: space.sm, marginTop: space.md },
+  quietOptions: { gap: space.xxs, marginTop: space.lg },
   exclude: {
     alignSelf: 'flex-start',
-    marginTop: space.lg,
     paddingHorizontal: space.sm,
     paddingVertical: space.xs,
   },
