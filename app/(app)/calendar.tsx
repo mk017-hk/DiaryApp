@@ -161,6 +161,17 @@ export default function Calendar() {
             row of icons would make this look like an app for managing things
             rather than a place to keep them. */}
         <PressableScale
+          onPress={() => router.push('/search')}
+          haptic="light"
+          accessibilityLabel="Search everything you have written"
+          style={styles.patterns}
+        >
+          <Text variant="callout" color="accent">
+            Search
+          </Text>
+        </PressableScale>
+
+        <PressableScale
           onPress={() => router.push('/patterns')}
           haptic="light"
           accessibilityLabel="See patterns over time"
