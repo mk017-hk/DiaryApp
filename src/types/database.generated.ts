@@ -289,6 +289,47 @@ export type Database = {
           },
         ]
       }
+      future_messages: {
+        Row: {
+          author_id: string
+          body: string | null
+          created_at: string
+          delivered_at: string | null
+          diary_id: string
+          id: string
+          unlock_on: string
+          unlocked_at: string | null
+        }
+        Insert: {
+          author_id: string
+          body?: string | null
+          created_at?: string
+          delivered_at?: string | null
+          diary_id: string
+          id?: string
+          unlock_on: string
+          unlocked_at?: string | null
+        }
+        Update: {
+          author_id?: string
+          body?: string | null
+          created_at?: string
+          delivered_at?: string | null
+          diary_id?: string
+          id?: string
+          unlock_on?: string
+          unlocked_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "future_messages_diary_id_fkey"
+            columns: ["diary_id"]
+            isOneToOne: false
+            referencedRelation: "diaries"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       journal_entries: {
         Row: {
           ai_excluded: boolean
@@ -553,8 +594,19 @@ export type Database = {
         }
         Returns: boolean
       }
+      destroy_future_message: { Args: { message_id: string }; Returns: boolean }
       is_diary_member: { Args: { d: string; u: string }; Returns: boolean }
       is_diary_owner: { Args: { d: string; u: string }; Returns: boolean }
+      open_future_message: {
+        Args: { message_id: string }
+        Returns: {
+          body: string
+          created_at: string
+          id: string
+          unlock_on: string
+          unlocked_at: string
+        }[]
+      }
       resurfacing_candidates: {
         Args: { on_date?: string }
         Returns: {
@@ -566,6 +618,16 @@ export type Database = {
           thread_id: string
           title: string
           years_ago: number
+        }[]
+      }
+      sealed_letters: {
+        Args: never
+        Returns: {
+          created_at: string
+          diary_id: string
+          has_body: boolean
+          id: string
+          unlock_on: string
         }[]
       }
       set_assistant_consent: { Args: { enabled: boolean }; Returns: undefined }

@@ -22,6 +22,7 @@ import {
 } from '@/services/supabase/entries';
 import { forgetEmotions } from '@/services/supabase/emotions';
 import { forgetSignedUrls, reconcilePendingMedia, uploadMedia } from '@/services/supabase/media';
+import { sealedLetters, sendLetters } from '@/services/supabase/letters';
 import { pullMutes, pushMutes } from '@/services/supabase/mutes';
 import { pullThreads, pushThreads } from '@/services/supabase/threads';
 
@@ -81,6 +82,20 @@ function remoteFor(context: SyncContext): SyncRemote {
     pullThreads: () => pullThreads(context),
     pushMutes: (mutes) => pushMutes(mutes, context),
     pullMutes: () => pullMutes(context),
+    sendLetters: (letters) => sendLetters(letters, context),
+    pullLetters: async () => {
+      const result = await sealedLetters();
+      return result.ok
+        ? {
+            ok: true as const,
+            value: result.value.map(({ id, unlockOn, createdAt }) => ({
+              id,
+              unlockOn,
+              createdAt,
+            })),
+          }
+        : result;
+    },
   };
 }
 

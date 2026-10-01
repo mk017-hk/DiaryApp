@@ -17,8 +17,8 @@ formats, entry detail, thread screen, security screen. Entry, thread, emotion
 and media sync. The assistant's context rules and consent. On This Day
 resurfacing, with every way of switching it off.
 
-**Not built.** Transcription. The assistant's model call. Future Me. Sharing UI.
-Billing. Notifications. The dashboard half of Phase 7. Memory movies.
+**Not built.** Transcription. The assistant's model call. Sharing UI. Billing.
+Notifications. The dashboard half of Phase 7. Memory movies.
 
 **The honest gap.** `src/features/assistant/prompts.ts` is a fixed pool of
 sentences chosen by day of month. It has never read an entry. The line that
@@ -402,30 +402,51 @@ things rather than a place to keep them.
 
 ---
 
-## Phase 8: Future Me
+## Phase 8: Future Me ✅ done
 
-New migration.
+A letter you write now and cannot read until the day you chose. The whole
+feature is one property, and it is a security property rather than a product
+one: between writing and that morning, nobody can read the body — not another
+member of a shared diary, not somebody holding a token, and not the author,
+which is the point and the part that takes work to mean.
 
-```sql
-create table future_messages (
-  id uuid primary key default gen_random_uuid(),
-  diary_id uuid not null references diaries (id) on delete cascade,
-  author_id uuid not null references auth.users (id) on delete cascade,
-  body text check (char_length(body) <= 100000),
-  unlock_on date not null,
-  unlocked_at timestamptz,
-  delivered_at timestamptz,
-  created_at timestamptz not null default now()
-);
-```
+The select policy carries `unlock_on <= current_date`, so before that day the
+row does not come back at all. `select *` as the author, with a valid token, in
+a REPL, returns nothing.
 
-**Sealed must mean sealed in the database.** A policy that returns the row and
-lets the client hide it is theatre, and this project has not built anything
-that way yet. The read policy carries `unlock_on <= current_date`. Media for a
-future message needs the same treatment, so the signed URL is only mintable
-after the date.
+Three things fell out of taking that seriously, each of which only showed up by
+writing the tests as an attack rather than as a feature check:
 
-Delivery is a scheduled function plus a notification on the morning it opens.
+- **The id has to come from the device.** `insert ... returning` applies the
+  select policy to the new row, so Postgres cannot name the letter it has just
+  written without unsealing it. Refusing is correct; the app supplies the id,
+  as it already does for entries.
+- **Destroying a letter unread needs its own function.** Postgres applies SELECT
+  policies to any DELETE whose WHERE clause references the row, so an ordinary
+  `delete where id = ...` matches nothing while the letter is sealed. The seal
+  takes the escape hatch with it. `destroy_future_message` is explicit,
+  SECURITY DEFINER, and never reads the body — not into a variable, not into a
+  return value, not into an error.
+- **The update policy needs the date clause too**, and for a reason no test
+  through the API can reach: PostgREST always sends a filter, but an unfiltered
+  `update future_messages set body = '...'` references no existing row, so no
+  SELECT policy applies. Without the clause that silently overwrites every
+  sealed letter in the diary. Checked by hand against the local stack — one row
+  overwritten without it, none with it.
+
+**This is the one part of the app that is not local-first**, and the exception
+is the feature rather than a compromise in it. A body sitting in AsyncStorage is
+readable by anyone holding the phone, so the device keeps it only until the push
+succeeds and then drops it. Which leaves an honest gap, between writing and the
+next sync, where the letter is still on the phone — and the screen says exactly
+that in those words rather than claiming "sealed" and being wrong.
+
+There is no "open it early", and that is not an omission. She can always change
+her mind about having written it, just not about when to read it.
+
+**Not done:** delivery. A scheduled function and a notification on the morning
+it opens both need a development build, so they move with Phase 4. Until then a
+letter waits on the screen rather than arriving.
 
 ---
 

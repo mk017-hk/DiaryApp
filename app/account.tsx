@@ -7,6 +7,7 @@ import { space } from '@/design';
 import { AuthNotice, useSession } from '@/features/auth';
 import { AssistantConsent } from '@/features/assistant';
 import { clearEntries, clearQuietDates, clearThreads, useSync } from '@/features/entries';
+import { clearLetters } from '@/features/letters';
 import { deleteAllCaptured, deleteAllRecordings } from '@/features/media';
 import { useProfile } from '@/features/profile';
 
@@ -38,6 +39,9 @@ export default function Account() {
       // A quiet date says something about its owner that the next person to
       // sign in on this phone has no business reading.
       clearQuietDates(),
+      // Only ever metadata and a body not yet sent; both belong to the person
+      // signing out rather than to the phone.
+      clearLetters(),
       deleteAllRecordings(),
       reset(),
     ]);
@@ -148,6 +152,13 @@ export default function Account() {
           label="Quiet dates"
           variant="secondary"
           onPress={() => router.push('/quiet-dates')}
+          fullWidth
+        />
+
+        <Button
+          label="Letters to yourself"
+          variant="secondary"
+          onPress={() => router.push('/letters')}
           fullWidth
         />
 

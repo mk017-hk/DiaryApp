@@ -1,5 +1,11 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+import {
+  applyRemoteLetters,
+  markSealed,
+  unsentLetters,
+  type Letter,
+} from '@/features/letters/letterStore';
 import type { AppError } from '@/services/supabase/errors';
 
 import {
@@ -82,6 +88,15 @@ export interface SyncRemote {
    */
   pushMutes?(mutes: QuietDates[]): Promise<RemoteResult<string[]>>;
   pullMutes?(): Promise<RemoteResult<QuietDates[]>>;
+  /**
+   * Letters to yourself, both directions.
+   *
+   * The push returns accepted ids rather than rows — the account will not hand
+   * a sealed letter back, which is the point of the feature. The pull returns
+   * metadata only, for the same reason.
+   */
+  sendLetters?(letters: Letter[]): Promise<RemoteResult<string[]>>;
+  pullLetters?(): Promise<RemoteResult<{ id: string; unlockOn: string; createdAt: string }[]>>;
 }
 
 export interface SyncReport {
@@ -96,6 +111,8 @@ export interface SyncReport {
   threads: number;
   /** Quiet dates pushed and pulled. */
   mutes: number;
+  /** Letters that reached the account this pass, and so left the phone. */
+  letters: number;
   error?: AppError;
 }
 
@@ -155,7 +172,16 @@ export async function syncEntries(
   options: SyncOptions = {},
 ): Promise<SyncReport> {
   if (inFlight !== null) {
-    return { status: 'busy', pushed: 0, pulled: 0, removed: 0, uploaded: 0, threads: 0, mutes: 0 };
+    return {
+      status: 'busy',
+      pushed: 0,
+      pulled: 0,
+      removed: 0,
+      uploaded: 0,
+      threads: 0,
+      mutes: 0,
+      letters: 0,
+    };
   }
 
   inFlight = runSync(remote, options).finally(() => {
@@ -187,6 +213,13 @@ async function runSync(remote: SyncRemote, options: SyncOptions): Promise<SyncRe
   // resurfacing card is drawn on app launch.
   const mutes = await syncMutes(remote);
 
+  // --- letters -------------------------------------------------------------
+
+  // Before entries too, and for the sharpest reason of any of them: until this
+  // runs, a sealed letter's body is sitting in AsyncStorage on the phone. Every
+  // pass that does this first is a window closed.
+  const letters = await syncLetters(remote);
+
   // --- push ---------------------------------------------------------------
   const queued = await unsyncedEntries();
 
@@ -203,6 +236,7 @@ async function runSync(remote: SyncRemote, options: SyncOptions): Promise<SyncRe
         uploaded: 0,
         threads,
         mutes,
+        letters,
         error: result.error,
       };
     }
@@ -234,6 +268,7 @@ async function runSync(remote: SyncRemote, options: SyncOptions): Promise<SyncRe
       uploaded,
       threads,
       mutes,
+      letters,
       error: pull.error,
     };
   }
@@ -266,7 +301,16 @@ async function runSync(remote: SyncRemote, options: SyncOptions): Promise<SyncRe
   // nothing pointing at them.
   uploaded = await uploadPendingMedia(remote);
 
-  return { status: 'ok', pushed, pulled: entries.length, removed, uploaded, threads, mutes };
+  return {
+    status: 'ok',
+    pushed,
+    pulled: entries.length,
+    removed,
+    uploaded,
+    threads,
+    mutes,
+    letters,
+  };
 }
 
 /**
@@ -344,6 +388,39 @@ async function syncMutes(remote: SyncRemote): Promise<number> {
   }
 
   return touched;
+}
+
+/**
+ * Letters, both ways.
+ *
+ * The push is the moment a letter becomes sealed: the account accepts the body,
+ * and `markSealed` drops it from the device. Until then the seal is a promise
+ * about the future rather than a fact, and the screen says so in those words.
+ *
+ * The pull brings back metadata for letters written on another phone — when
+ * each opens, and nothing else, because that is all the account will say about
+ * a sealed one.
+ */
+async function syncLetters(remote: SyncRemote): Promise<number> {
+  let sent = 0;
+
+  if (remote.sendLetters !== undefined) {
+    const queued = await unsentLetters();
+    if (queued.length > 0) {
+      const result = await remote.sendLetters(queued);
+      if (result.ok) {
+        await markSealed(result.value);
+        sent = result.value.length;
+      }
+    }
+  }
+
+  if (remote.pullLetters !== undefined) {
+    const result = await remote.pullLetters();
+    if (result.ok) await applyRemoteLetters(result.value);
+  }
+
+  return sent;
 }
 
 /**
