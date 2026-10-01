@@ -11,37 +11,46 @@ except resurfacing is blocked on Phase 1 and Phase 2.
 ## Where the repo actually is
 
 **Built.** Design system with contrast tests. Full Postgres schema with Row
-Level Security and a two user isolation suite. App lock with PIN, biometrics and
-a privacy cover. Onboarding, Today, calendar, compose with all four capture
-formats, entry detail, thread screen, security screen. Entry, thread, emotion
-and media sync. The assistant's context rules and consent. On This Day
-resurfacing, with every way of switching it off.
+Level Security, a two-user isolation suite, a third user who was never a member
+and a former member. App lock with PIN, biometrics and a privacy cover.
+Onboarding, Today, calendar, compose with all four capture formats, entry
+detail, thread screen, security screen. Entry, thread, emotion and media sync,
+local-first with last-write-wins by authoring time. The assistant's context
+rules and consent, enforced in SQL. On This Day resurfacing with every way of
+switching it off. Patterns over time. Letters to yourself, sealed in the
+database. Shared diaries, with a page the other person cannot read. Search.
+Export, as a machine-readable archive and as a page that opens in any browser.
 
-**Not built.** Transcription. The assistant's model call. Billing.
-Notifications. The dashboard half of Phase 7. Memory movies.
+**Not built, and blocked on something other than code.** Transcription, push
+notifications, video compression and Sign in with Apple all need a development
+build, which needs an Apple Developer account. The assistant's model call needs
+a provider key in Supabase secrets. Anything on a real phone against real data
+needs a hosted Supabase project. Billing needs RevenueCat and App Store Connect.
+Memory movies need a music licence. The DPIA needs a person, not a program.
 
-**The honest gap.** `src/features/assistant/prompts.ts` is a fixed pool of
-sentences chosen by day of month. It has never read an entry. The line that
-sells the app, "you were sad Monday and Tuesday, how are you today", does not
-exist in any form. It is Phase 5, and Phases 1 through 4 exist to make it
-possible.
+**Not built, and not blocked.** The dashboard half of Phase 7, which wants
+`ai_messages` rows and the `people` and `location_label` columns — both of which
+are waiting on work above rather than on a screen. Thread follow-up as a
+distinct assistant surface: the context function already reaches back through
+open threads, so it is a prompt and a screen rather than new plumbing.
 
-`src/features/entries/entryStore.ts` writes to AsyncStorage. It was built to
-wear the shape of `journal_entries`, so Phase 2 changes that file and nothing
-that calls it. That decision holds up.
+**The honest gap, still honest.** `src/features/assistant/prompts.ts` is a pool
+of sentences chosen by tone and intention. It has never read an entry. The line
+that sells the app — "you were sad Monday and Tuesday, how are you today" —
+does not exist in any form, and will not until there is a key for the model
+call. Everything on the path to it is built and tested: the context function
+with every exclusion rule, consent in both directions, the copy-rule filter, the
+`based_on_entry_ids` honesty trail, and the surface it will speak through.
 
-Two things have moved since this was written. `prompts.ts` now varies by a tone
-the user picks at onboarding and by what they said they were here for — still a
-fixed pool, so the gap above stands unchanged, but the surface the assistant
-will speak through already exists. And profile persistence, switched off while
-onboarding was being shaped, is back on: the app remembers you between
-launches, and signing out is what clears it.
+`src/features/entries/entryStore.ts` writes to AsyncStorage and was built to
+wear the shape of `journal_entries`. That decision has now survived six phases
+of schema changes without a rewrite, which is the strongest thing that can be
+said for it.
 
-Phases 1 and 2 are done. Authentication, the `(public)` screens, the session
-gate and account deletion; then entry sync, conflict resolution and media
-upload — see each phase below for what changed along the way. The device is
-still the authority for reads, which was always the intention rather than a
-staging post.
+**The one deliberate exception to local-first** is Future Me. A sealed letter
+cannot live on the device, because a body in AsyncStorage is readable by anyone
+holding the phone and the seal would be something the interface says rather than
+something that is true.
 
 ---
 
