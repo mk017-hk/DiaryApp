@@ -18,7 +18,7 @@ and media sync. The assistant's context rules and consent. On This Day
 resurfacing, with every way of switching it off.
 
 **Not built.** Transcription. The assistant's model call. Future Me. Sharing UI.
-Billing. Notifications. Timeline. Dashboard. Memory movies.
+Billing. Notifications. The dashboard half of Phase 7. Memory movies.
 
 **The honest gap.** `src/features/assistant/prompts.ts` is a fixed pool of
 sentences chosen by day of month. It has never read an entry. The line that
@@ -365,17 +365,40 @@ is what the index is for.
 
 ---
 
-## Phase 7: emotional timeline and growth dashboard
+## Phase 7: emotional timeline — the timeline is done
 
-Read only surfaces over data Phase 3 started collecting.
+**Done: the Patterns screen.** Mood over time as a shape rather than a number,
+filterable by thread, every point tappable through to the entry it came from.
+The words she chose most, weighted by how often rather than printed with counts
+beside them. And the days themselves as texture — one mark per day, no numbers,
+no run lengths, the same decision the calendar already makes by using a small
+dot instead of shading a cell.
 
-- **Timeline.** Mood over time, filterable by thread, tappable through to the
-  entry.
-- **Dashboard.** Recurring themes, drawn from `ai_messages` rather than
-  recomputed. Most mentioned people and places from `people` and
-  `location_label`. Cadence shown as texture, never as a streak.
-- Aggregate in an RPC. Pulling a year of entries to the client to draw a chart
-  defeats the point of the storage model.
+What the screen refuses to be is the thing it would most easily become. No
+average, no score for a month, no streak, no count of entries, no mention of a
+gap. Each of those is one line of obvious code away, which is exactly why there
+are tests asserting their absence rather than a comment asking for it — the way
+this promise gets broken is not a bug, it is somebody later adding something
+helpful. Somebody who stopped writing for three weeks in February had a reason,
+and the app is not owed it.
+
+It shows and does not conclude. Reading a shape is hers to do, and it is the one
+thing the assistant is explicitly forbidden from doing.
+
+**Changed on the way: no RPC.** The plan called for aggregating server side, on
+the grounds that pulling a year of entries to the client defeats the storage
+model. That reasoning belongs to a product where the server is the authority for
+reads, and this one is the other way round — the entries are already on the
+device. A round trip would buy nothing and cost the one thing this screen should
+never need, which is a connection.
+
+**Not done:** the dashboard half. Recurring themes are meant to come from
+`ai_messages`, which stays empty until the assistant's model call runs, and most
+mentioned people and places come from `people` and `location_label`, which
+nothing writes yet. Both are blocked on other work rather than on this screen.
+It reaches Patterns from the calendar rather than a third tab: two destinations
+is a deliberate decision, and a row of icons would make this an app for managing
+things rather than a place to keep them.
 
 ---
 

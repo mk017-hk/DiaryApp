@@ -156,6 +156,21 @@ export default function Calendar() {
           })}
         </View>
 
+        {/* The long view, from the screen that is already about going back.
+            Not a third tab: two destinations is a deliberate decision, and a
+            row of icons would make this look like an app for managing things
+            rather than a place to keep them. */}
+        <PressableScale
+          onPress={() => router.push('/patterns')}
+          haptic="light"
+          accessibilityLabel="See patterns over time"
+          style={styles.patterns}
+        >
+          <Text variant="callout" color="accent">
+            Patterns over time
+          </Text>
+        </PressableScale>
+
         <View style={styles.selectedDay}>
           <Text variant="overline" color="inkTertiary">
             {longDate(fromDateKey(selected))}
@@ -195,6 +210,7 @@ const styles = StyleSheet.create({
   entryRow: { paddingVertical: space.sm },
   grid: { flexDirection: 'row', flexWrap: 'wrap' },
   monthHeader: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
+  patterns: { alignSelf: 'center', marginTop: space.lg, paddingVertical: space.xs },
   selectedDay: { gap: space.xs, marginTop: space.xl },
   weekdays: { flexDirection: 'row', marginTop: space.lg },
 });
