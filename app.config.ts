@@ -23,6 +23,20 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     config: {
       usesNonExemptEncryption: false,
     },
+    /**
+     * Deliberately NOT setting `UIFileSharingEnabled`.
+     *
+     * It is the obvious way to let somebody reach an exported folder — the
+     * documents directory shows up in Files under On My iPhone — and it is
+     * wrong here, because that same directory is where the diary's own videos,
+     * photos and voice notes live. Turning it on would put every recording in
+     * the app behind no lock at all, reachable by anyone who plugs the phone
+     * into a computer, which is precisely what the PIN and the privacy cover
+     * exist to prevent. An export is worth a lot; it is not worth that.
+     *
+     * The export reaches her through the share sheet instead, and media through
+     * the photo library, which is the place on iOS she can already get at.
+     */
   },
   android: {
     package: 'com.mk017hk.diaryapp',

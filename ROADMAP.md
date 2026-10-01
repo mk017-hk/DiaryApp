@@ -538,14 +538,42 @@ The hardest phase, and correctly the last.
 
 ---
 
-## Phase 12: launch readiness
+## Phase 12: launch readiness — export is done
 
-- Export and delete, both complete, both including storage objects.
+**Done: export.** The test of whether somebody owns their diary is whether they
+can walk away with it. So the export is both halves at once: a JSON archive
+another program could read, and a page that opens in any browser with no app,
+no network and no scripts — the thing that still works in ten years.
+
+Written against one rule: an export that quietly omits something is worse than
+no export, because somebody who has one believes they have their diary. So it is
+built by naming every store the app keeps, and a test fails if a future feature
+adds one and forgets this file. It carries the flags she set on an entry too —
+"keep this from the assistant" is part of the record of what she wanted, and
+dropping it would be the export deciding her choices were not her data.
+
+A sealed letter is listed and not included, and says why. Leaving it out would
+be the export quietly agreeing it does not exist.
+
+**Changed on the way, and worth remembering.** The obvious way to hand somebody
+an exported folder on iOS is `UIFileSharingEnabled`, which puts the documents
+directory in the Files app. It is also where the diary's own videos, photos and
+voice notes live — so turning it on would put every recording in the app behind
+no lock at all, reachable by anyone who plugs the phone into a computer, which
+is exactly what the PIN and the privacy cover exist to prevent. An export is
+worth a lot; it is not worth that. The text leaves through the share sheet
+instead, and media through the photo library, which is the one place on a phone
+somebody already knows how to reach and already backs up.
+
+Delete was already complete, storage objects included, from Phase 1.
+
+**Not done, and not mine to do:**
+
 - **A DPIA is likely required.** Inferring emotional patterns from someone's
   diary is arguably special category data under UK GDPR Article 9. The
   `ai_consented_at` column is the right instinct and probably the lawful basis,
   but get the assessment written. This is the legal risk in the product, not
-  the security model, which is already better than most.
+  the security model.
 - App Store privacy labels, age rating, and a data retention statement.
 
 ---

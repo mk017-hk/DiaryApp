@@ -187,6 +187,18 @@ export default function Account() {
 
             <Divider />
 
+            {/* Next to deletion rather than buried, because the moment most
+                people want a copy of something is the moment before they
+                delete it. */}
+            <Button
+              label="Take a copy of everything"
+              variant="secondary"
+              onPress={() => router.push('/export')}
+              fullWidth
+            />
+
+            <Divider />
+
             <Text variant="overline" color="inkTertiary">
               Delete account
             </Text>
