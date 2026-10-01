@@ -14,12 +14,7 @@ import { useSession } from '@/features/auth';
 import { deleteCaptured, deleteRecording } from '@/features/media';
 import { logger } from '@/services/logger';
 import { AppError } from '@/services/supabase/errors';
-import {
-  personalDiaryId,
-  pullEntries,
-  pushEntries,
-  type SyncContext,
-} from '@/services/supabase/entries';
+import { ownDiary, pullEntries, pushEntries, type SyncContext } from '@/services/supabase/entries';
 import { forgetEmotions } from '@/services/supabase/emotions';
 import { forgetSignedUrls, reconcilePendingMedia, uploadMedia } from '@/services/supabase/media';
 import { sealedLetters, sendLetters } from '@/services/supabase/letters';
@@ -49,6 +44,13 @@ interface SyncContextValue {
   state: SyncState;
   /** How many entries are waiting to reach the account. */
   pending: number;
+  /**
+   * Whether somebody else is in this diary.
+   *
+   * Screens use it to decide whether to offer "keep this page to myself",
+   * which is noise in a diary of one and the whole point in a diary of two.
+   */
+  shared: boolean;
   /** Runs a pass now. Returns what happened, for a pull-to-refresh. */
   syncNow: () => Promise<SyncReport | null>;
 }
@@ -112,7 +114,11 @@ export function SyncProvider({ children }: { children: ReactNode }) {
    * version of this that cleared the id in an effect would be one render of
    * one person's diary id while another person is signed in.
    */
-  const [resolved, setResolved] = useState<{ userId: string; diaryId: string } | null>(null);
+  const [resolved, setResolved] = useState<{
+    userId: string;
+    diaryId: string;
+    shared: boolean;
+  } | null>(null);
 
   // Held in a ref as well as state so the AppState and write listeners — which
   // are registered once and must not be torn down on every session change —
@@ -120,7 +126,9 @@ export function SyncProvider({ children }: { children: ReactNode }) {
   const contextRef = useRef<SyncContext | null>(null);
   const userId = user?.id ?? null;
 
-  const diaryId = resolved !== null && resolved.userId === userId ? resolved.diaryId : null;
+  const forThisUser = resolved !== null && resolved.userId === userId ? resolved : null;
+  const diaryId = forThisUser?.diaryId ?? null;
+  const shared = forThisUser?.shared ?? false;
 
   useEffect(() => {
     contextRef.current = diaryId !== null && userId !== null ? { diaryId, userId } : null;
@@ -132,8 +140,10 @@ export function SyncProvider({ children }: { children: ReactNode }) {
     if (status !== 'signed-in' || userId === null) return;
 
     let cancelled = false;
-    void personalDiaryId().then((id) => {
-      if (!cancelled && id !== null) setResolved({ userId, diaryId: id });
+    void ownDiary().then((diary) => {
+      if (!cancelled && diary !== null) {
+        setResolved({ userId, diaryId: diary.id, shared: diary.shared });
+      }
     });
 
     return () => {
@@ -269,8 +279,8 @@ export function SyncProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const value = useMemo<SyncContextValue>(
-    () => ({ state, pending, syncNow }),
-    [state, pending, syncNow],
+    () => ({ state, pending, shared, syncNow }),
+    [state, pending, shared, syncNow],
   );
 
   return <SyncStateContext.Provider value={value}>{children}</SyncStateContext.Provider>;

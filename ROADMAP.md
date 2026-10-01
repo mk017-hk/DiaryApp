@@ -17,7 +17,7 @@ formats, entry detail, thread screen, security screen. Entry, thread, emotion
 and media sync. The assistant's context rules and consent. On This Day
 resurfacing, with every way of switching it off.
 
-**Not built.** Transcription. The assistant's model call. Sharing UI. Billing.
+**Not built.** Transcription. The assistant's model call. Billing.
 Notifications. The dashboard half of Phase 7. Memory movies.
 
 **The honest gap.** `src/features/assistant/prompts.ts` is a fixed pool of
@@ -450,20 +450,64 @@ letter waits on the screen rather than arriving.
 
 ---
 
-## Phase 9: shared diaries
+## Phase 9: shared diaries ✅ done
 
-The schema is ready. `diaries`, `diary_members` and every policy asking
-`is_diary_member` were built for this.
+The schema was built for this from the first migration — entries live in a
+diary, diaries have members, every policy already asked `is_diary_member` — so
+this added no column to `journal_entries` for sharing itself. What it added was
+the way in, and the way to keep part of a shared diary to yourself.
 
-- `diary_invites` table, single use code or email, an accept RPC that inserts
-  the membership. Never let the client insert into `diary_members` directly.
-- Per entry visibility inside a shared diary. Two people sharing a record of
-  something hard still need a page the other cannot read. This is a new column
-  and a policy change, so decide it now rather than after launch.
-- Leaving a shared diary: entries stay with their author, the other member
-  loses access, nothing is destroyed.
-- Extend the RLS isolation suite to cover a third user who was never a member,
-  and a former member.
+**Invites.** A single-use code, stored hashed, in the clear exactly once in the
+response to whoever made it. A table of live invite codes is a table of keys to
+other people's diaries; hashed, a leak of it is worth nothing. Every refusal —
+no such code, expired, revoked, already used, your own, already a member —
+returns the same message, because different messages would make it an oracle
+for which codes exist.
+
+**The client never inserts into `diary_members`.** That row is the single most
+dangerous write in the schema: anyone who can create one reads everything in the
+diary, forever, and nothing else in the design would notice. Joining goes
+through one SECURITY DEFINER function that checks an invitation and nothing
+else, and the owner-only insert policy is untouched.
+
+**A page the other person cannot read.** `is_personal` on entries and on
+threads, decided now rather than after launch exactly as planned. Without it the
+only way to keep one difficult entry out of a shared diary is not to write it,
+which is the outcome this app exists to prevent.
+
+**Leaving.** Access goes, nothing is destroyed. Entries stay in the diary they
+were written in, with their author — a shared record of a year is not something
+one person takes away, and a leave that deleted would let somebody erase half an
+archive from their own phone. An owner cannot leave; their route out is deleting
+the diary or the account, both of which say what they do.
+
+Three bugs, each found by a test rather than by reading:
+
+- **A policy subquery reads through the caller's own policies.** The entry
+  policy asked `not exists (select 1 from threads where ... is_personal)` — and
+  the thread policy had just finished hiding that exact row from that exact
+  person. The subquery found nothing, `not exists` came out true, and every
+  entry in the thread she most wanted to keep to herself was readable by the
+  other member. The fix is a SECURITY DEFINER helper, which is why
+  `is_diary_member` was one all along. The policy reads correctly; the hole was
+  in the interaction.
+- **Consent was being asked of the wrong person.** `assistant_context` gated on
+  `assistant_allowed()`, which asks whether _the caller_ consented — the whole
+  of the question while a diary had one member, and the wrong question with two.
+  Alice consents, Bob does not, and Alice's morning question gets assembled out
+  of Bob's writing. Now asked of each entry's author.
+- **Finding your own diary broke the moment you shared it.** The lookup asked
+  for `kind = 'personal'`, and inviting somebody flips that same diary to
+  'shared'. Sync would have stopped silently for exactly the people using the
+  newest feature. Found by owner now, with the old query kept as a test so the
+  reason is written where somebody would look.
+
+The isolation suite gained a third user who was never a member and a former
+member, as planned.
+
+**Not done:** gating invites on a subscription, which is Phase 10's job — the
+accept function is where that check belongs when there is an entitlement to
+check.
 
 ---
 

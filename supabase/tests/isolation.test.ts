@@ -403,3 +403,130 @@ describe('signing up the way the app does', () => {
     expect((mine ?? []).length).toBeGreaterThan(0);
   });
 });
+
+/**
+ * Somebody who used to be in the diary.
+ *
+ * The case that is easy to miss, because every policy here is written against
+ * the present tense of membership and a former member looks exactly like a
+ * stranger to all of them — until something somewhere caches, or a token
+ * outlives the row it was authorised by. These are the same questions the
+ * isolation suite asks of a stranger, asked again of somebody for whom the
+ * answer used to be yes.
+ */
+describe('a former member of a shared diary', () => {
+  let owner: TestUser;
+  let former: TestUser;
+  let entryId: string;
+
+  beforeAll(async () => {
+    owner = await createTestUser('owner');
+    former = await createTestUser('former');
+
+    const { data: code } = await owner.client.rpc('create_diary_invite', {
+      target_diary: owner.diaryId,
+    });
+    await former.client.rpc('accept_diary_invite', { code });
+
+    entryId = await createEntry(owner, { body: 'Written while we shared this.' });
+
+    // And they could read it, which is what makes the rest of this meaningful.
+    const { data: before } = await former.client
+      .from('journal_entries')
+      .select('id')
+      .eq('id', entryId);
+    expect(before).toHaveLength(1);
+
+    await former.client.rpc('leave_diary', { target_diary: owner.diaryId });
+  });
+
+  afterAll(async () => {
+    await deleteTestUser(owner);
+    await deleteTestUser(former);
+  });
+
+  it('cannot read an entry they could read yesterday', async () => {
+    const { data } = await former.client.from('journal_entries').select('body').eq('id', entryId);
+
+    expect(data).toEqual([]);
+  });
+
+  it('cannot write into the diary any more', async () => {
+    const { error } = await former.client.from('journal_entries').insert({
+      diary_id: owner.diaryId,
+      author_id: former.user.id,
+      body: 'Still here, apparently.',
+    });
+
+    expect(error).not.toBeNull();
+  });
+
+  // The entries they wrote stay in the diary — a shared record of a year is
+  // not something one person takes away — and they lose sight of them with
+  // everything else.
+  it('loses the entries they wrote into the shared diary', async () => {
+    const { data: code } = await owner.client.rpc('create_diary_invite', {
+      target_diary: owner.diaryId,
+    });
+    await former.client.rpc('accept_diary_invite', { code });
+
+    const theirs = await createEntry(former, {
+      diary_id: owner.diaryId,
+      body: 'Mine, written in theirs.',
+    });
+    await former.client.rpc('leave_diary', { target_diary: owner.diaryId });
+
+    const { data: gone } = await former.client
+      .from('journal_entries')
+      .select('id')
+      .eq('id', theirs);
+    expect(gone).toEqual([]);
+
+    // Still there for the person whose diary it is.
+    const { data: kept } = await owner.client
+      .from('journal_entries')
+      .select('body')
+      .eq('id', theirs);
+    expect(kept?.[0]?.body).toEqual('Mine, written in theirs.');
+  });
+
+  it('cannot see who is in the diary', async () => {
+    const { data } = await former.client.rpc('diary_members_with_names', {
+      target_diary: owner.diaryId,
+    });
+
+    expect(data ?? []).toEqual([]);
+  });
+
+  it('cannot read its threads', async () => {
+    await owner.client
+      .from('threads')
+      .insert({ diary_id: owner.diaryId, title: 'After they left', created_by: owner.user.id });
+
+    const { data } = await former.client.from('threads').select('id').eq('diary_id', owner.diaryId);
+
+    expect(data).toEqual([]);
+  });
+
+  it('cannot let themselves back in', async () => {
+    const { error } = await former.client
+      .from('diary_members')
+      .insert({ diary_id: owner.diaryId, user_id: former.user.id, role: 'member' });
+
+    expect(error?.code).toEqual('42501');
+  });
+
+  // Their own diary is untouched. Leaving a shared diary is not leaving the
+  // app, and somebody who shared a year with a person they are no longer with
+  // should not lose their own record of it.
+  it('still has their own diary', async () => {
+    await createEntry(former, { body: 'Mine, in mine.' });
+
+    const { data } = await former.client
+      .from('journal_entries')
+      .select('body')
+      .eq('diary_id', former.diaryId);
+
+    expect(data?.map((row) => row.body)).toContain('Mine, in mine.');
+  });
+});

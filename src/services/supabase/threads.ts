@@ -21,6 +21,8 @@ interface ThreadRow {
   status: ThreadStatus;
   is_private: boolean;
   resurface_muted: boolean;
+  is_personal: boolean;
+  created_by: string | null;
   started_on: string;
   created_at: string;
   updated_at: string;
@@ -35,6 +37,10 @@ export function toThreadRow(thread: Thread, context: SyncContext): ThreadRow {
     status: thread.status,
     is_private: thread.isPrivate,
     resurface_muted: thread.resurfaceMuted ?? false,
+    is_personal: thread.isPersonal ?? false,
+    // Stamped from the session rather than from the thread, exactly as an
+    // entry's author is: a client-supplied author is a claim, not a fact.
+    created_by: context.userId,
     started_on: thread.startedOn,
     created_at: thread.createdAt,
     updated_at: thread.updatedAt,
@@ -55,11 +61,13 @@ export function fromThreadRow(row: ThreadRow): Thread {
 
   if (row.description !== null) thread.description = row.description;
   if (row.resurface_muted) thread.resurfaceMuted = true;
+  if (row.is_personal) thread.isPersonal = true;
+  if (row.created_by !== null) thread.createdBy = row.created_by;
   return thread;
 }
 
 const SELECT =
-  'id, diary_id, title, description, status, is_private, resurface_muted, started_on, created_at, updated_at';
+  'id, diary_id, title, description, status, is_private, resurface_muted, is_personal, created_by, started_on, created_at, updated_at';
 
 export async function pushThreads(
   threads: Thread[],

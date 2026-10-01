@@ -252,3 +252,85 @@ describe('what it hands over', () => {
     expect((data ?? []).length).toBeLessThanOrEqual(200);
   });
 });
+
+/**
+ * Consent in a shared diary.
+ *
+ * The question `assistant_allowed()` asks is whether the *caller* consented,
+ * which was the whole of it while every diary had one member. With two, it is
+ * the wrong question: Alice consents, Bob does not, and Alice's morning
+ * question gets assembled out of Bob's writing because the only consent
+ * anybody checked was hers.
+ *
+ * Consent belongs to whoever wrote the words.
+ */
+describe('a shared diary, where only one of them said yes', () => {
+  let keeper: TestUser;
+  let guest: TestUser;
+
+  beforeAll(async () => {
+    keeper = await createTestUser('keeper');
+    guest = await createTestUser('guest');
+    await consent(keeper, true);
+
+    const { data: code } = await keeper.client.rpc('create_diary_invite', {
+      target_diary: keeper.diaryId,
+    });
+    await guest.client.rpc('accept_diary_invite', { code });
+  });
+
+  afterAll(async () => {
+    await deleteTestUser(keeper);
+    await deleteTestUser(guest);
+  });
+
+  it('keeps a non-consenting member out of the other one’s context', async () => {
+    await createEntry(guest, {
+      diary_id: keeper.diaryId,
+      body: 'Written by somebody who never agreed to this.',
+    });
+
+    expect(await bodies(keeper)).not.toContain('Written by somebody who never agreed to this.');
+  });
+
+  it('still reads the entries of the member who did consent', async () => {
+    await createEntry(keeper, { body: 'Mine, and I said yes.' });
+
+    expect(await bodies(keeper)).toContain('Mine, and I said yes.');
+  });
+
+  it('includes their entries once they do consent', async () => {
+    await consent(guest, true);
+    await createEntry(guest, { diary_id: keeper.diaryId, body: 'Now I have agreed.' });
+
+    expect(await bodies(keeper)).toContain('Now I have agreed.');
+  });
+
+  it('drops them again if they withdraw it', async () => {
+    await consent(guest, true);
+    await createEntry(guest, { diary_id: keeper.diaryId, body: 'Agreed, then changed my mind.' });
+    await consent(guest, false);
+
+    expect(await bodies(keeper)).not.toContain('Agreed, then changed my mind.');
+  });
+
+  // RLS already hides a personal entry from the other member. The assistant is
+  // the one caller for whom getting it wrong means words in a prompt rather
+  // than merely on a screen, so it is checked here as well.
+  it('never reads a personal entry into the other member’s context', async () => {
+    await consent(guest, true);
+    await createEntry(guest, {
+      diary_id: keeper.diaryId,
+      body: 'The page I kept to myself.',
+      is_personal: true,
+    });
+
+    expect(await bodies(keeper)).not.toContain('The page I kept to myself.');
+  });
+
+  it('does not read a personal entry into its own author’s context either', async () => {
+    await createEntry(keeper, { body: 'Mine, and only mine.', is_personal: true });
+
+    expect(await bodies(keeper)).not.toContain('Mine, and only mine.');
+  });
+});

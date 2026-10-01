@@ -19,6 +19,7 @@ import {
   EmotionPicker,
   ThreadPicker,
   updateEntry,
+  useSync,
   type EntryMedia,
 } from '@/features/entries';
 import {
@@ -58,6 +59,7 @@ export default function Compose() {
   const insets = useSafeAreaInsets();
   const { name } = useProfile();
   const { mode } = useLocalSearchParams<{ mode?: string }>();
+  const { shared } = useSync();
 
   const [recording, setRecording] = useState(mode === 'video');
   const [voiceOpen, setVoiceOpen] = useState(mode === 'voice');
@@ -76,6 +78,7 @@ export default function Compose() {
   const [threadId, setThreadId] = useState<string | undefined>(undefined);
   const [aiExcluded, setAiExcluded] = useState(false);
   const [resurfaceExcluded, setResurfaceExcluded] = useState(false);
+  const [isPersonal, setIsPersonal] = useState(false);
   const [saving, setSaving] = useState(false);
 
   // Read once. A screen open past midnight must not silently change which day
@@ -116,6 +119,7 @@ export default function Compose() {
       ...(threadId !== undefined ? { threadId } : {}),
       ...(aiExcluded ? { aiExcluded: true } : {}),
       ...(resurfaceExcluded ? { resurfaceExcluded: true } : {}),
+      ...(isPersonal ? { isPersonal: true } : {}),
       isFavourite: false,
     });
 
@@ -321,6 +325,16 @@ export default function Compose() {
               on={resurfaceExcluded}
               onPress={() => setResurfaceExcluded(!resurfaceExcluded)}
             />
+            {/* Only in a diary somebody else is in. In a diary of one it would
+                be a question with no meaning, offered on every page. */}
+            {shared && (
+              <QuietOption
+                label="Just for me — not shown to anyone else in this diary"
+                accessibilityLabel="Keep this page to yourself"
+                on={isPersonal}
+                onPress={() => setIsPersonal(!isPersonal)}
+              />
+            )}
           </View>
         </ScrollView>
 

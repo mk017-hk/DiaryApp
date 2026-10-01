@@ -44,6 +44,15 @@ export interface Thread {
    * collapsing the two would take memories away as the price of privacy.
    */
   resurfaceMuted?: boolean;
+  /**
+   * A whole story only its author can read, inside a shared diary.
+   *
+   * Separate from `isPrivate`, which hides it from the assistant, and from
+   * `resurfaceMuted`, which stops it being handed back as a memory.
+   */
+  isPersonal?: boolean;
+  /** Who started it. Set by the server from the session on first push. */
+  createdBy?: string;
   /** 'YYYY-MM-DD' — when the story starts, which may predate the diary. */
   startedOn: string;
   createdAt: string;

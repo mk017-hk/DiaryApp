@@ -102,6 +102,50 @@ export type Database = {
         }
         Relationships: []
       }
+      diary_invites: {
+        Row: {
+          accepted_at: string | null
+          accepted_by: string | null
+          code_hash: string
+          created_at: string
+          diary_id: string
+          expires_at: string
+          id: string
+          invited_by: string
+          revoked_at: string | null
+        }
+        Insert: {
+          accepted_at?: string | null
+          accepted_by?: string | null
+          code_hash: string
+          created_at?: string
+          diary_id: string
+          expires_at: string
+          id?: string
+          invited_by: string
+          revoked_at?: string | null
+        }
+        Update: {
+          accepted_at?: string | null
+          accepted_by?: string | null
+          code_hash?: string
+          created_at?: string
+          diary_id?: string
+          expires_at?: string
+          id?: string
+          invited_by?: string
+          revoked_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "diary_invites_diary_id_fkey"
+            columns: ["diary_id"]
+            isOneToOne: false
+            referencedRelation: "diaries"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       diary_members: {
         Row: {
           diary_id: string
@@ -342,6 +386,7 @@ export type Database = {
           entry_date: string
           id: string
           is_favourite: boolean
+          is_personal: boolean
           location_label: string | null
           mood: number | null
           people: string[] | null
@@ -361,6 +406,7 @@ export type Database = {
           entry_date?: string
           id?: string
           is_favourite?: boolean
+          is_personal?: boolean
           location_label?: string | null
           mood?: number | null
           people?: string[] | null
@@ -380,6 +426,7 @@ export type Database = {
           entry_date?: string
           id?: string
           is_favourite?: boolean
+          is_personal?: boolean
           location_label?: string | null
           mood?: number | null
           people?: string[] | null
@@ -520,9 +567,11 @@ export type Database = {
       threads: {
         Row: {
           created_at: string
+          created_by: string | null
           description: string | null
           diary_id: string
           id: string
+          is_personal: boolean
           is_private: boolean
           resurface_muted: boolean
           started_on: string
@@ -532,9 +581,11 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          created_by?: string | null
           description?: string | null
           diary_id: string
           id?: string
+          is_personal?: boolean
           is_private?: boolean
           resurface_muted?: boolean
           started_on?: string
@@ -544,9 +595,11 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          created_by?: string | null
           description?: string | null
           diary_id?: string
           id?: string
+          is_personal?: boolean
           is_private?: boolean
           resurface_muted?: boolean
           started_on?: string
@@ -569,7 +622,9 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      accept_diary_invite: { Args: { code: string }; Returns: string }
       assistant_allowed: { Args: { for_user?: string }; Returns: boolean }
+      assistant_allowed_for: { Args: { author: string }; Returns: boolean }
       assistant_context: {
         Args: { max_entries?: number; window_days?: number }
         Returns: {
@@ -583,6 +638,10 @@ export type Database = {
           transcript: string
         }[]
       }
+      create_diary_invite: {
+        Args: { target_diary: string; valid_days?: number }
+        Returns: string
+      }
       date_within_mute: {
         Args: {
           check_day: number
@@ -595,8 +654,18 @@ export type Database = {
         Returns: boolean
       }
       destroy_future_message: { Args: { message_id: string }; Returns: boolean }
+      diary_members_with_names: {
+        Args: { target_diary: string }
+        Returns: {
+          display_name: string
+          joined_at: string
+          role: Database["public"]["Enums"]["diary_role"]
+          user_id: string
+        }[]
+      }
       is_diary_member: { Args: { d: string; u: string }; Returns: boolean }
       is_diary_owner: { Args: { d: string; u: string }; Returns: boolean }
+      leave_diary: { Args: { target_diary: string }; Returns: boolean }
       open_future_message: {
         Args: { message_id: string }
         Returns: {
@@ -641,6 +710,7 @@ export type Database = {
           storage_path: string
         }[]
       }
+      thread_is_personal: { Args: { t: string }; Returns: boolean }
     }
     Enums: {
       ai_message_kind: "question" | "observation"

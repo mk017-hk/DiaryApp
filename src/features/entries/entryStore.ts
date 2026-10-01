@@ -103,6 +103,15 @@ export interface Entry {
    */
   resurfaceExcluded?: boolean;
 
+  /**
+   * Readable only by its author, even inside a shared diary.
+   *
+   * Two people keeping a record of something hard still need a page the other
+   * cannot read; without this the only way to keep one difficult entry private
+   * is not to write it. Enforced by the select policy in Postgres, not here.
+   */
+  isPersonal?: boolean;
+
   isFavourite: boolean;
   createdAt: string;
   updatedAt: string;

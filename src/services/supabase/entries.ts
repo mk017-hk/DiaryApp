@@ -30,6 +30,7 @@ interface EntryRow {
   thread_id: string | null;
   ai_excluded: boolean;
   resurface_excluded: boolean;
+  is_personal: boolean;
   body: string | null;
   entry_date: string;
   entry_at: string;
@@ -85,6 +86,7 @@ export function toRow(entry: Entry, context: SyncContext): EntryRow {
     thread_id: entry.threadId ?? null,
     ai_excluded: entry.aiExcluded ?? false,
     resurface_excluded: entry.resurfaceExcluded ?? false,
+    is_personal: entry.isPersonal ?? false,
     body: entry.body,
     entry_date: entry.entryDate,
     entry_at: entry.entryAt,
@@ -127,6 +129,7 @@ export function fromRow(row: EntryRowWithMedia, slugById?: Map<string, string>):
   if (row.thread_id !== null) entry.threadId = row.thread_id;
   if (row.ai_excluded) entry.aiExcluded = true;
   if (row.resurface_excluded) entry.resurfaceExcluded = true;
+  if (row.is_personal) entry.isPersonal = true;
 
   if (row.entry_emotions !== undefined && slugById !== undefined) {
     entry.emotions = row.entry_emotions
@@ -306,20 +309,30 @@ export async function pullEntries(
 // ---------------------------------------------------------------------------
 
 /**
- * The signed-in user's personal diary.
+ * The diary this device writes into: the signed-in user's own.
  *
  * Created by the `handle_new_user` trigger at sign-up, so it exists before the
  * app ever asks. RLS means this can only ever return diaries the caller is a
  * member of, so there is nothing to check here that the database has not.
+ *
+ * Found by owner rather than by `kind`, which is the part worth remembering.
+ * An earlier version asked for `kind = 'personal'` — correct until the day
+ * sharing shipped, because inviting somebody flips that same diary to 'shared'
+ * and the query would then match nothing. The symptom would have been sync
+ * silently stopping for exactly the people who used the newest feature.
  */
-export async function personalDiaryId(): Promise<string | null> {
+export async function ownDiary(): Promise<{ id: string; shared: boolean } | null> {
   if (!isSupabaseConfigured) return null;
 
   try {
+    const { data: session } = await supabase.auth.getSession();
+    const userId = session.session?.user.id;
+    if (userId === undefined) return null;
+
     const { data, error } = await supabase
       .from('diaries')
-      .select('id')
-      .eq('kind', 'personal')
+      .select('id, kind')
+      .eq('owner_id', userId)
       .order('created_at', { ascending: true })
       .limit(1);
 
@@ -328,9 +341,17 @@ export async function personalDiaryId(): Promise<string | null> {
       return null;
     }
 
-    return data?.[0]?.id ?? null;
+    const row = data?.[0];
+    if (row === undefined) return null;
+
+    return { id: row.id as string, shared: row.kind === 'shared' };
   } catch (error) {
     toAppError(error, 'find diary');
     return null;
   }
+}
+
+/** @deprecated Use `ownDiary`, which still finds it once the diary is shared. */
+export async function personalDiaryId(): Promise<string | null> {
+  return (await ownDiary())?.id ?? null;
 }

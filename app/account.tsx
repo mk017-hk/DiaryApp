@@ -162,6 +162,13 @@ export default function Account() {
           fullWidth
         />
 
+        <Button
+          label="Sharing"
+          variant="secondary"
+          onPress={() => router.push('/sharing')}
+          fullWidth
+        />
+
         {status === 'signed-in' && <AssistantConsent />}
 
         <Divider />
