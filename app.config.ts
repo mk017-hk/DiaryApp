@@ -98,6 +98,29 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
           'Diary asks for a photo only when you choose to attach one to an entry. It never reads the rest of your library.',
       },
     ],
+    [
+      'expo-local-authentication',
+      {
+        // The sentence somebody reads before letting an app use their face.
+        // Expo's default is "Allow Diary to use Face ID", which says what will
+        // happen and nothing about why — and the why is the whole of it here:
+        // the lock exists to keep the diary shut, not to identify anyone.
+        faceIDPermission:
+          'Diary uses Face ID to unlock your diary, so nobody who picks up your phone can read it.',
+      },
+    ],
+    [
+      'expo-media-library',
+      {
+        // Only ever write, and only when she asks for a copy of everything.
+        // The app never reads the photo library through this — picking a photo
+        // to attach goes through expo-image-picker, which asks separately.
+        savePhotosPermission:
+          'Diary saves your videos and photos to your own photo library when you ask for a copy of everything.',
+        photosPermission:
+          'Diary does not read your photo library. This is only asked for so it can save your own recordings into it.',
+      },
+    ],
   ],
   experiments: {
     typedRoutes: true,
