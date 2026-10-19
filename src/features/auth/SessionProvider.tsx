@@ -11,7 +11,7 @@ import {
 import type { ReactNode } from 'react';
 
 import * as auth from '@/services/supabase/auth';
-import type { AuthResult } from '@/services/supabase/auth';
+import type { AuthLinkOutcome, AuthResult } from '@/services/supabase/auth';
 import { isSupabaseConfigured } from '@/services/supabase/client';
 
 /**
@@ -56,6 +56,10 @@ interface SessionContextValue {
   ) => Promise<AuthResult<{ needsConfirmation: boolean }>>;
   signOut: () => Promise<AuthResult<null>>;
   requestPasswordReset: (email: string) => Promise<AuthResult<null>>;
+  /** Completes a link from an email — a confirmation or a password reset. */
+  completeAuthLink: (url: string) => Promise<AuthResult<AuthLinkOutcome>>;
+  /** Sets a new password, from a recovery link. Signs out every other session. */
+  setNewPassword: (password: string) => Promise<AuthResult<null>>;
   deleteAccount: () => Promise<AuthResult<null>>;
 }
 
@@ -183,6 +187,8 @@ export function SessionProvider({
       signUp,
       signOut: auth.signOut,
       requestPasswordReset: auth.requestPasswordReset,
+      completeAuthLink: auth.completeAuthLink,
+      setNewPassword: auth.setNewPassword,
       deleteAccount: auth.deleteAccount,
     }),
     [status, session, signUp],

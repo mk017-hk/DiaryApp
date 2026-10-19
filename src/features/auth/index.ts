@@ -6,3 +6,5 @@ export { AuthNotice } from './AuthNotice';
 export { AuthPage } from './AuthPage';
 
 export { emailError, passwordError, signInPasswordError, MIN_PASSWORD_LENGTH } from './validation';
+
+export { parseAuthLink, queryFromParams, type AuthLink } from './authLink';

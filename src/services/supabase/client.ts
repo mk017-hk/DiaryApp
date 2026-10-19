@@ -87,7 +87,15 @@ export const supabase = createClient<Database>(
       persistSession: true,
       // There are no URL sessions to detect in a native app, and leaving this on
       // makes the client parse window.location, which does not exist here.
+      // Links from emails are completed explicitly, by the auth/callback route.
       detectSessionInUrl: false,
+      // PKCE rather than the implicit default. Implicit puts the access and
+      // refresh tokens in the redirect URL itself, where they can end up in a
+      // log, a browser's history or a share sheet. PKCE puts a one-time code
+      // there instead, worthless without a verifier that never left this
+      // phone — and it lets the phone, not the link, say whether the link was
+      // a password reset.
+      flowType: 'pkce',
     },
     ...(isSupabaseConfigured ? {} : { global: { fetch: refuseAllRequests } }),
   },

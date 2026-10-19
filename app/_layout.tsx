@@ -112,6 +112,11 @@ function ThemedStack() {
 
   const inOnboarding = segments[0] === 'onboarding';
   const inPublic = segments[0] === '(public)';
+  // Links from emails. Reachable signed out (a confirmation, before the link is
+  // read), signed in (a reset, after it is), and before onboarding (a reset
+  // tapped on a phone the app was just reinstalled on). The gate stays out of
+  // the way until the screen itself moves on.
+  const inAuthLink = segments[0] === 'auth';
 
   /*
    * Someone signing in on a new phone has an account but nothing stored here.
@@ -135,6 +140,7 @@ function ThemedStack() {
    */
   useEffect(() => {
     if (!ready || status === 'loading' || status === 'blocked') return;
+    if (inAuthLink) return;
 
     if (!onboarded) {
       if (!inOnboarding) router.replace('/onboarding');
@@ -147,7 +153,7 @@ function ThemedStack() {
     }
 
     if (inPublic || inOnboarding) router.replace('/');
-  }, [ready, onboarded, status, inOnboarding, inPublic, router]);
+  }, [ready, onboarded, status, inOnboarding, inPublic, inAuthLink, router]);
 
   // Nothing renders until both are known. A frame of the diary before the
   // redirect lands would show one person's entries to whoever is holding the
@@ -191,6 +197,8 @@ function ThemedStack() {
         <Stack.Screen name="account" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="security" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="support" options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="auth/callback" options={{ animation: 'fade' }} />
+        <Stack.Screen name="auth/reset-password" options={{ animation: 'fade' }} />
       </Stack>
     </>
   );

@@ -159,7 +159,17 @@ site_url = "http://127.0.0.1:3000"
 # The public URL that Auth serves on. Defaults to the API external URL with `/auth/v1` appended.
 # external_url = ""
 # A list of *exact* URLs that auth providers are permitted to redirect to post authentication.
-additional_redirect_urls = ["https://127.0.0.1:3000"]
+#
+# Where links in confirmation and reset emails bring somebody back to. A
+# redirect missing from here is silently replaced with site_url, and the email
+# then opens a web page instead of the app — so the app's own scheme is listed,
+# and Expo Go's for development. `**` matches across slashes.
+#
+# LOCAL ONLY. The hosted project's allow list is set in its dashboard (see
+# GOING_LIVE.md), and `supabase config push` must not be used to copy this file
+# there: everything else in it — confirmations off, a localhost site URL — is
+# deliberately wrong for production.
+additional_redirect_urls = ["https://127.0.0.1:3000", "diary://**", "exp://**"]
 # How long tokens are valid for, in seconds. Defaults to 3600 (1 hour), maximum 604,800 (1 week).
 jwt_expiry = 3600
 # JWT issuer URL. If not set, defaults to auth.external_url.
