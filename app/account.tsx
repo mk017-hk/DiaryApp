@@ -6,9 +6,8 @@ import { Button, Divider, Field, Screen, Text } from '@/components';
 import { space } from '@/design';
 import { AuthNotice, useSession } from '@/features/auth';
 import { AssistantConsent } from '@/features/assistant';
-import { clearEntries, clearQuietDates, clearThreads, useSync } from '@/features/entries';
-import { clearLetters } from '@/features/letters';
-import { deleteAllCaptured, deleteAllRecordings } from '@/features/media';
+import { wipeDiaryFromDevice } from '@/features/device';
+import { useSync } from '@/features/entries';
 import { useProfile } from '@/features/profile';
 
 /**
@@ -32,22 +31,10 @@ export default function Account() {
   const wipeDevice = async () => {
     // Entries live on the device, so signing out has to take them with it.
     // Leaving one person's diary on the phone for the next person to sign in
-    // and find would be the worst bug this app could have.
-    await Promise.all([
-      clearEntries(),
-      clearThreads(),
-      // A quiet date says something about its owner that the next person to
-      // sign in on this phone has no business reading.
-      clearQuietDates(),
-      // Only ever metadata and a body not yet sent; both belong to the person
-      // signing out rather than to the phone.
-      clearLetters(),
-      deleteAllRecordings(),
-      reset(),
-    ]);
-    // Photos and voice notes live in their own directories, so they need
-    // clearing alongside the videos or they outlive the diary they belonged to.
-    deleteAllCaptured();
+    // and find would be the worst bug this app could have. The list of what
+    // that means lives in one place, shared with a different account signing
+    // in, so the two can never drift apart again.
+    await wipeDiaryFromDevice({ resetProfile: reset });
   };
 
   const finishSignOut = () => {

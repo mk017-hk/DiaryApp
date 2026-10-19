@@ -1,4 +1,12 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import type { ReactNode } from 'react';
 
 import {
@@ -39,14 +47,29 @@ interface ProfileContextValue {
 const ProfileContext = createContext<ProfileContextValue | null>(null);
 
 export function ProfileProvider({ children }: { children: ReactNode }) {
-  const [profile, setProfile] = useState<Profile>(EMPTY_PROFILE);
+  const [profile, setStoredProfile] = useState<Profile>(EMPTY_PROFILE);
   const [ready, setReady] = useState(false);
+
+  /**
+   * Whether anything has written the profile since mount.
+   *
+   * The initial load is a read of storage that can resolve late — and a
+   * different account signing in replaces the profile during launch, which can
+   * land first. Without this the load would arrive afterwards and put the
+   * previous person's name back on screen. Storage would be right; the screen
+   * would not.
+   */
+  const written = useRef(false);
+  const setProfile: typeof setStoredProfile = useCallback((next) => {
+    written.current = true;
+    setStoredProfile(next);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
     void loadProfile().then((loaded) => {
       if (cancelled) return;
-      setProfile(loaded);
+      if (!written.current) setStoredProfile(loaded);
       setReady(true);
     });
     return () => {
@@ -73,7 +96,7 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
       setProfile(next);
       await saveProfile(next);
     },
-    [],
+    [setProfile],
   );
 
   /**
@@ -88,18 +111,21 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
    * Callers check `onboarded` first: a profile already on the device wins,
    * because it holds choices this cannot recover.
    */
-  const adoptAccountName = useCallback(async (name: string) => {
-    const trimmed = name.trim();
-    if (trimmed.length === 0) return;
+  const adoptAccountName = useCallback(
+    async (name: string) => {
+      const trimmed = name.trim();
+      if (trimmed.length === 0) return;
 
-    const next: Profile = {
-      ...EMPTY_PROFILE,
-      name: trimmed,
-      onboardedAt: new Date().toISOString(),
-    };
-    setProfile(next);
-    await saveProfile(next);
-  }, []);
+      const next: Profile = {
+        ...EMPTY_PROFILE,
+        name: trimmed,
+        onboardedAt: new Date().toISOString(),
+      };
+      setProfile(next);
+      await saveProfile(next);
+    },
+    [setProfile],
+  );
 
   const clearPendingConsent = useCallback(async () => {
     setProfile((current) => {
@@ -107,12 +133,12 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
       void saveProfile(rest);
       return rest;
     });
-  }, []);
+  }, [setProfile]);
 
   const reset = useCallback(async () => {
     setProfile(EMPTY_PROFILE);
     await clearProfile();
-  }, []);
+  }, [setProfile]);
 
   const value = useMemo<ProfileContextValue>(
     () => ({

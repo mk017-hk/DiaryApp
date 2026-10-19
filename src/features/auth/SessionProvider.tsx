@@ -1,5 +1,13 @@
 import type { Session, User } from '@supabase/supabase-js';
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import type { ReactNode } from 'react';
 
 import * as auth from '@/services/supabase/auth';
@@ -21,6 +29,12 @@ export type SessionStatus =
   | 'loading'
   | 'signed-in'
   | 'signed-out'
+  /**
+   * Signed in, but this phone could not be made ready for that account — the
+   * device holds somebody's diary and it was not possible to settle whose.
+   * Nothing is shown and nothing is synced until it is. See `prepareDevice`.
+   */
+  | 'blocked'
   /**
    * No Supabase credentials in this build. Not an error: the diary runs
    * locally without a backend, and gating it behind a sign-in screen that
@@ -55,25 +69,87 @@ function nameFrom(session: Session | null): string {
   return typeof name === 'string' ? name.trim() : '';
 }
 
-export function SessionProvider({ children }: { children: ReactNode }) {
+/** Lets every session through. What a provider with no device to prepare uses. */
+const NOTHING_TO_PREPARE = (): Promise<boolean> => Promise.resolve(true);
+
+export function SessionProvider({
+  children,
+  prepareDevice = NOTHING_TO_PREPARE,
+}: {
+  children: ReactNode;
+  /**
+   * Runs before a session is reported as signed in, and must resolve true for
+   * it to be.
+   *
+   * This is where the phone is checked for somebody else's diary. It has to
+   * happen *here*, before the status changes, rather than in a component
+   * reacting to it: the moment the status reads signed-in, the sync engine
+   * starts and the gate navigates to Today, and both would be reading a diary
+   * that may not belong to the person now signed in.
+   *
+   * Injected rather than imported because the device module depends on the
+   * entry, letter and media stores, all of which depend on this one.
+   */
+  prepareDevice?: (session: Session) => Promise<boolean>;
+}) {
   const [session, setSession] = useState<Session | null>(null);
   const [status, setStatus] = useState<SessionStatus>(
     isSupabaseConfigured ? 'loading' : 'unavailable',
   );
+
+  // Held in a ref so a new function identity from the parent does not tear
+  // down the auth subscription and lose events in between.
+  const prepareRef = useRef(prepareDevice);
+  useEffect(() => {
+    prepareRef.current = prepareDevice;
+  }, [prepareDevice]);
 
   useEffect(() => {
     if (!isSupabaseConfigured) return;
 
     let cancelled = false;
 
-    const apply = (next: Session | null) => {
-      if (cancelled) return;
+    // Which account this device has already been made ready for in this run
+    // of the app, so the hourly token refresh is a no-op rather than a storage
+    // read. Cleared on sign-out: the next sign-in must be checked afresh.
+    let preparedFor: string | null = null;
+
+    // Only the most recent change may commit. Preparing can involve a wipe,
+    // which takes time; a sign-out arriving meanwhile must not be overwritten
+    // by the sign-in that started before it.
+    let latest = 0;
+
+    const apply = async (next: Session | null) => {
+      const ticket = ++latest;
+
+      if (next === null) {
+        preparedFor = null;
+        if (cancelled) return;
+        setSession(null);
+        setStatus('signed-out');
+        return;
+      }
+
+      if (preparedFor !== next.user.id) {
+        const ready = await prepareRef.current(next);
+        if (cancelled || ticket !== latest) return;
+
+        if (!ready) {
+          setSession(null);
+          setStatus('blocked');
+          return;
+        }
+
+        preparedFor = next.user.id;
+      }
+
+      if (cancelled || ticket !== latest) return;
       setSession(next);
-      setStatus(next === null ? 'signed-out' : 'signed-in');
+      setStatus('signed-in');
     };
 
     void auth.getSession().then(apply);
-    const unsubscribe = auth.observeSession(apply);
+    const unsubscribe = auth.observeSession((next) => void apply(next));
 
     return () => {
       cancelled = true;

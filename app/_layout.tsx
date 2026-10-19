@@ -2,12 +2,17 @@ import { useFonts } from 'expo-font';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
+import type { Session } from '@supabase/supabase-js';
 import { useCallback, useEffect } from 'react';
+import type { ReactNode } from 'react';
+import { StyleSheet, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
-import { ThemeProvider, fontAssets, useTheme } from '@/design';
+import { Text } from '@/components';
+import { ThemeProvider, fontAssets, space, useTheme } from '@/design';
 import { SessionProvider, useSession } from '@/features/auth';
+import { prepareDeviceFor } from '@/features/device';
 import { PendingConsent } from '@/features/assistant';
 import { SyncProvider } from '@/features/entries';
 import { LockGate, LockProvider } from '@/features/lock';
@@ -35,8 +40,11 @@ export default function RootLayout() {
     <GestureHandlerRootView style={{ flex: 1 }} onLayout={onReady}>
       <SafeAreaProvider>
         <ThemeProvider>
-          <SessionProvider>
-            <ProfileProvider>
+          {/* The profile sits outside the session now, so that a different
+              account signing in can have the previous person's name and
+              preferences replaced before it is reported as signed in. */}
+          <ProfileProvider>
+            <SessionWithDevice>
               {/* The lock is the outermost gate, and deliberately so: it guards
                   the device, and there are entries on this device whether or
                   not a session is currently valid. Auth is a redirect inside
@@ -56,12 +64,43 @@ export default function RootLayout() {
                   </SyncProvider>
                 </LockGate>
               </LockProvider>
-            </ProfileProvider>
-          </SessionProvider>
+            </SessionWithDevice>
+          </ProfileProvider>
         </ThemeProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );
+}
+
+/**
+ * The session, made to wait until this phone's diary belongs to whoever is
+ * signing in.
+ *
+ * Where a different account is signing in, the previous person's diary is
+ * wiped and the profile replaced with the new account's name — in one step, so
+ * that there is no moment where the app shows an empty profile and sends the
+ * new person back through onboarding.
+ */
+function SessionWithDevice({ children }: { children: ReactNode }) {
+  const { adoptAccountName, reset } = useProfile();
+
+  const prepareDevice = useCallback(
+    (session: Session) =>
+      prepareDeviceFor(session.user.id, {
+        replaceProfile: async () => {
+          const metadata = session.user.user_metadata as Record<string, unknown>;
+          const name = metadata.display_name ?? metadata.full_name ?? metadata.name;
+          if (typeof name === 'string' && name.trim().length > 0) {
+            await adoptAccountName(name);
+          } else {
+            await reset();
+          }
+        },
+      }),
+    [adoptAccountName, reset],
+  );
+
+  return <SessionProvider prepareDevice={prepareDevice}>{children}</SessionProvider>;
 }
 
 function ThemedStack() {
@@ -95,7 +134,7 @@ function ThemedStack() {
    * rather than parked on a sign-in screen that cannot succeed.
    */
   useEffect(() => {
-    if (!ready || status === 'loading') return;
+    if (!ready || status === 'loading' || status === 'blocked') return;
 
     if (!onboarded) {
       if (!inOnboarding) router.replace('/onboarding');
@@ -114,6 +153,21 @@ function ThemedStack() {
   // redirect lands would show one person's entries to whoever is holding the
   // phone next.
   if (!ready || status === 'loading') return null;
+
+  // Somebody's diary is on this phone and it was not possible to settle whose.
+  // Neither shown nor destroyed; a relaunch tries again.
+  if (status === 'blocked') {
+    return (
+      <View style={[styles.blocked, { backgroundColor: theme.colors.canvas }]}>
+        <Text variant="title3" align="center">
+          This phone could not be got ready for your diary.
+        </Text>
+        <Text variant="callout" color="inkSecondary" align="center">
+          Nothing has been lost. Close the app completely and open it again.
+        </Text>
+      </View>
+    );
+  }
 
   return (
     <>
@@ -141,3 +195,7 @@ function ThemedStack() {
     </>
   );
 }
+
+const styles = StyleSheet.create({
+  blocked: { flex: 1, gap: space.sm, justifyContent: 'center', paddingHorizontal: space.lg },
+});
