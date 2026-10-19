@@ -25,7 +25,7 @@ Export, as a machine-readable archive and as a page that opens in any browser.
 notifications, video compression and Sign in with Apple all need a development
 build, which needs an Apple Developer account. The assistant's model call needs
 a provider key in Supabase secrets. Anything on a real phone against real data
-needs a hosted Supabase project. Billing needs RevenueCat and App Store Connect.
+needs a hosted Supabase project — GOING_LIVE.md is the whole procedure. Billing needs RevenueCat and App Store Connect.
 Memory movies need a music licence. The DPIA needs a person, not a program.
 
 **Not built, and not blocked.** The dashboard half of Phase 7, which wants

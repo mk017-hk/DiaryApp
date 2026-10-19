@@ -67,16 +67,10 @@ Without a Supabase URL the app runs device-only: entries stay on the phone,
 there is no sign-in, nothing syncs. That is a legitimate way to use it and the
 app says so on the account screen.
 
-For a build that syncs, the project needs a hosted Supabase project (the local
-stack at `127.0.0.1` is unreachable from a phone), and then:
-
-```bash
-eas env:create --name EXPO_PUBLIC_SUPABASE_URL --value https://xxx.supabase.co
-eas env:create --name EXPO_PUBLIC_SUPABASE_ANON_KEY --value eyJ...
-```
-
-The anon key is safe to ship — every table is behind Row Level Security. The
-service role key must never go near this project.
+For real accounts — sign-up, sync, password reset, sharing — the app needs a
+hosted Supabase project. **GOING_LIVE.md** covers all of it: creating the
+project, pushing the schema, the auth settings that matter, email that
+actually arrives, and the variables a build needs.
 
 ---
 
