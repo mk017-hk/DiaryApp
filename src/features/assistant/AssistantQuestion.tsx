@@ -15,6 +15,8 @@ import {
 interface AssistantQuestionProps {
   /** Used when the assistant has nothing to say, which is most days. */
   fallback: string;
+  /** Display on a page of its own; title2 inside a card. */
+  variant?: 'display' | 'title2';
 }
 
 /**
@@ -29,7 +31,7 @@ interface AssistantQuestionProps {
  * is the honesty feature of this app: a person can always see which of their
  * own entries produced it, and go and read them.
  */
-export function AssistantQuestion({ fallback }: AssistantQuestionProps) {
+export function AssistantQuestion({ fallback, variant = 'display' }: AssistantQuestionProps) {
   const theme = useTheme();
   const router = useRouter();
 
@@ -68,7 +70,7 @@ export function AssistantQuestion({ fallback }: AssistantQuestionProps) {
   if (support) {
     return (
       <Animated.View entering={FadeIn.duration(400)}>
-        <Text variant="display" lineHeight={46}>
+        <Text variant={variant} {...(variant === 'display' ? { lineHeight: 46 } : {})}>
           {fallback}
         </Text>
         <PressableScale
@@ -90,7 +92,7 @@ export function AssistantQuestion({ fallback }: AssistantQuestionProps) {
 
   if (message === null) {
     return (
-      <Text variant="display" lineHeight={46}>
+      <Text variant={variant} {...(variant === 'display' ? { lineHeight: 46 } : {})}>
         {fallback}
       </Text>
     );
@@ -98,7 +100,7 @@ export function AssistantQuestion({ fallback }: AssistantQuestionProps) {
 
   return (
     <View style={styles.wrap}>
-      <Text variant="display" lineHeight={46}>
+      <Text variant={variant} {...(variant === 'display' ? { lineHeight: 46 } : {})}>
         {message.content}
       </Text>
 

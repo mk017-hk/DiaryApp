@@ -1,3 +1,4 @@
+import { clearCycleSettings, clearDayLogs } from '@/features/cycle';
 import { clearEntries, clearQuietDates, clearThreads } from '@/features/entries';
 import { resetSyncState } from '@/features/entries/sync';
 import { clearArchive } from '@/features/export';
@@ -30,6 +31,10 @@ export const ACCOUNT_KEYS = [
   'resurfacingMutes.v1',
   'letters.v1',
   'profile.v1',
+  // Cycle data is the most sensitive thing on the phone after the diary
+  // itself, and it is one person's. It goes with the account.
+  'cycle.days.v1',
+  'cycle.settings.v1',
 ] as const;
 
 /**
@@ -47,6 +52,8 @@ export const DEVICE_KEYS = [
   'lock.timeout',
   'lock.biometrics',
   'device.owner.v1',
+  // How the app looks on this phone. Not anybody's diary.
+  'theme.preference.v1',
 ] as const;
 
 export interface WipeOutcome {
@@ -77,6 +84,8 @@ export async function wipeDiaryFromDevice(options: {
     clearThreads(),
     clearQuietDates(),
     clearLetters(),
+    clearDayLogs(),
+    clearCycleSettings(),
     resetSyncState(),
     options.resetProfile(),
     deleteAllRecordings(),

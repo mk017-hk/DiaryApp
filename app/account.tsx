@@ -124,49 +124,13 @@ export default function Account() {
           </Text>
         )}
 
-        <Divider />
-
-        <Button
-          label="App lock"
-          variant="secondary"
-          onPress={() => router.push('/security')}
-          fullWidth
-        />
-
-        {/* Not buried. The whole point of this control is that somebody can
-            reach it on a bad afternoon without hunting for it. */}
-        <Button
-          label="Quiet dates"
-          variant="secondary"
-          onPress={() => router.push('/quiet-dates')}
-          fullWidth
-        />
-
-        <Button
-          label="Letters to yourself"
-          variant="secondary"
-          onPress={() => router.push('/letters')}
-          fullWidth
-        />
-
-        <Button
-          label="Sharing"
-          variant="secondary"
-          onPress={() => router.push('/sharing')}
-          fullWidth
-        />
-
-        {status === 'signed-in' && <AssistantConsent />}
-
-        <Divider />
-
-        {/* Never more than one tap away, and never behind anything. */}
-        <Button
-          label="If you need someone"
-          variant="secondary"
-          onPress={() => router.push('/support')}
-          fullWidth
-        />
+        {status === 'signed-in' && (
+          <>
+            <Divider />
+            <AssistantConsent />
+            <Divider />
+          </>
+        )}
 
         {status === 'signed-in' && (
           <>

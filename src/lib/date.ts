@@ -86,3 +86,50 @@ export function monthGrid(year: number, month: number): (string | null)[] {
 export function yearsAgo(then: Date, now: Date = new Date()): number {
   return now.getFullYear() - then.getFullYear();
 }
+
+/**
+ * Whole days, counted in UTC so a clock change never makes a day 23 hours long
+ * and turns "five days from now" into four. Only ever used for arithmetic on
+ * date keys, which carry no time of day to lose.
+ */
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+
+export function dayNumber(key: string): number {
+  const [year, month, day] = key.split('-').map(Number);
+  return Math.round(Date.UTC(year ?? 1970, (month ?? 1) - 1, day ?? 1) / MS_PER_DAY);
+}
+
+export function fromDayNumber(value: number): string {
+  const date = new Date(value * MS_PER_DAY);
+  const year = date.getUTCFullYear();
+  const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(date.getUTCDate()).padStart(2, '0');
+  return `${String(year)}-${month}-${day}`;
+}
+
+export function addDays(key: string, days: number): string {
+  return fromDayNumber(dayNumber(key) + days);
+}
+
+/** `to` minus `from`, in days. Negative when `to` is earlier. */
+export function daysBetween(from: string, to: string): number {
+  return dayNumber(to) - dayNumber(from);
+}
+
+/** "12 Mar" — for tight spaces like a cycle history row. */
+export function shortDate(key: string): string {
+  const date = fromDateKey(key);
+  return `${String(date.getDate())} ${(MONTHS[date.getMonth()] ?? '').slice(0, 3)}`;
+}
+
+/** "Mon" */
+export function weekdayShort(key: string): string {
+  return (WEEKDAYS[fromDateKey(key).getDay()] ?? '').slice(0, 3);
+}
+
+/** The seven date keys of the week (Monday first) holding `key`. */
+export function weekOf(key: string): string[] {
+  const leading = (fromDateKey(key).getDay() + 6) % 7;
+  const monday = addDays(key, -leading);
+  return Array.from({ length: 7 }, (_, index) => addDays(monday, index));
+}

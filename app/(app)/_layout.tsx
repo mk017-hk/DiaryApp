@@ -1,67 +1,78 @@
 import { Tabs } from 'expo-router';
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { Text } from '@/components';
-import { useTheme } from '@/design';
+import { Icon } from '@/components';
+import { fontFamily, useTheme } from '@/design';
 
 /**
- * Two tabs, not five.
+ * Five tabs.
  *
- * Today is where you answer; the calendar is how you go back. Everything else
- * belongs inside one of those. A row of five icons would make this look like
- * an app for managing things rather than a place to keep them.
+ * Today is where the day is: the cycle, the question, the check-in. The
+ * calendar is how you go back. Insights is what it all looks like from a
+ * distance. Ask is the assistant. You is everything that belongs to you rather
+ * than to a day — the lock, letters, sharing, export, your account.
+ *
+ * Icons with words under them, because five destinations is enough that an
+ * icon alone would have somebody guessing.
  */
+const TABS = [
+  {
+    name: 'index',
+    title: 'Today',
+    icon: 'white-balance-sunny',
+    iconFocused: 'white-balance-sunny',
+  },
+  {
+    name: 'calendar',
+    title: 'Calendar',
+    icon: 'calendar-blank-outline',
+    iconFocused: 'calendar-blank',
+  },
+  { name: 'insights', title: 'Insights', icon: 'chart-box-outline', iconFocused: 'chart-box' },
+  { name: 'ask', title: 'Ask', icon: 'chat-outline', iconFocused: 'chat' },
+  { name: 'you', title: 'You', icon: 'account-circle-outline', iconFocused: 'account-circle' },
+] as const;
+
 export default function AppTabs() {
   const theme = useTheme();
+  const insets = useSafeAreaInsets();
 
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
+        tabBarActiveTintColor: theme.colors.accent,
+        tabBarInactiveTintColor: theme.colors.inkTertiary,
+        tabBarLabelStyle: { fontFamily: fontFamily.sansMedium, fontSize: 11 },
         tabBarStyle: {
-          backgroundColor: theme.colors.canvas,
+          backgroundColor: theme.colors.card,
           borderTopColor: theme.colors.border,
           borderTopWidth: StyleSheet.hairlineWidth,
           elevation: 0,
-          height: 84,
-          paddingTop: 10,
+          height: 58 + insets.bottom,
+          paddingTop: 6,
         },
-        tabBarShowLabel: false,
         sceneStyle: { backgroundColor: theme.colors.canvas },
       }}
     >
-      <Tabs.Screen
-        name="index"
-        options={{
-          title: 'Today',
-          tabBarIcon: ({ focused }) => <TabLabel label="Today" focused={focused} />,
-          tabBarAccessibilityLabel: 'Today',
-        }}
-      />
-      <Tabs.Screen
-        name="calendar"
-        options={{
-          title: 'Calendar',
-          tabBarIcon: ({ focused }) => <TabLabel label="Calendar" focused={focused} />,
-          tabBarAccessibilityLabel: 'Calendar',
-        }}
-      />
+      {TABS.map((tab) => (
+        <Tabs.Screen
+          key={tab.name}
+          name={tab.name}
+          options={{
+            title: tab.title,
+            tabBarAccessibilityLabel: tab.title,
+            tabBarIcon: ({ focused }) => (
+              <Icon
+                name={focused ? tab.iconFocused : tab.icon}
+                size={24}
+                color={focused ? 'accent' : 'inkTertiary'}
+              />
+            ),
+          }}
+        />
+      ))}
     </Tabs>
   );
 }
-
-/** Words rather than icons: two destinations do not need a pictogram, and the
- *  serif label keeps the tab bar in the same voice as the rest of the app. */
-function TabLabel({ label, focused }: { label: string; focused: boolean }) {
-  return (
-    <View style={styles.tab}>
-      <Text variant="title3" color={focused ? 'ink' : 'inkFaint'}>
-        {label}
-      </Text>
-    </View>
-  );
-}
-
-const styles = StyleSheet.create({
-  tab: { alignItems: 'center', justifyContent: 'center', minWidth: 100 },
-});

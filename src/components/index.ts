@@ -30,3 +30,21 @@ export type { LoadStatus, StateViewProps } from './StateView';
 
 export { Text } from './Text';
 export type { TextColor, TextProps } from './Text';
+
+export { Card } from './Card';
+export type { CardProps } from './Card';
+
+export { Icon } from './Icon';
+export type { IconName, IconProps } from './Icon';
+
+export { IconChip } from './IconChip';
+export type { IconChipProps } from './IconChip';
+
+export { ListRow } from './ListRow';
+export type { ListRowProps } from './ListRow';
+
+export { SectionHeader } from './SectionHeader';
+export type { SectionHeaderProps } from './SectionHeader';
+
+export { Stepper } from './Stepper';
+export type { StepperProps } from './Stepper';

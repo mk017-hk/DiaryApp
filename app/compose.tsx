@@ -34,7 +34,7 @@ import {
   VoiceRecorder,
 } from '@/features/media';
 import { useProfile } from '@/features/profile';
-import { longDate, toDateKey } from '@/lib/date';
+import { fromDateKey, longDate, toDateKey } from '@/lib/date';
 import { logger } from '@/services/logger';
 
 const MOODS = [
@@ -58,7 +58,10 @@ export default function Compose() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { name } = useProfile();
-  const { mode } = useLocalSearchParams<{ mode?: string }>();
+  const params = useLocalSearchParams<{ mode?: string; date?: string; prompt?: string }>();
+  const mode = params.mode;
+  const prompt =
+    typeof params.prompt === 'string' && params.prompt.length > 0 ? params.prompt : null;
   const { shared } = useSync();
 
   const [recording, setRecording] = useState(mode === 'video');
@@ -85,6 +88,21 @@ export default function Compose() {
   // the entry belongs to, and reading the clock during render is impure.
   const [openedAt] = useState(() => new Date());
 
+  /**
+   * The day this belongs to. Today, unless it was opened from a past day on
+   * the calendar — writing up yesterday the morning after is ordinary, and it
+   * should land on yesterday. A date in the future, or one that is not a
+   * date, is ignored rather than trusted.
+   */
+  const [forDay] = useState(() => {
+    const today = toDateKey(new Date());
+    const asked = params.date;
+    return typeof asked === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(asked) && asked < today
+      ? asked
+      : today;
+  });
+  const backdated = forDay !== toDateKey(openedAt);
+
   const photos = media.filter((item) => item.kind === 'photo');
   const video = media.find((item) => item.kind === 'video');
   const voice = media.find((item) => item.kind === 'audio');
@@ -110,8 +128,10 @@ export default function Compose() {
     // playable — the worst case is a file the system may later reclaim, rather
     // than a moment lost outright.
     const entry = await createEntry({
-      entryDate: toDateKey(now),
-      entryAt: now.toISOString(),
+      entryDate: forDay,
+      // A backdated entry is placed at midday of its day, so it sorts inside
+      // that day rather than at the moment it happened to be written up.
+      entryAt: backdated ? new Date(`${forDay}T12:00:00`).toISOString() : now.toISOString(),
       body: body.trim(),
       mood,
       emotions,
@@ -182,7 +202,7 @@ export default function Compose() {
         >
           <View style={styles.header}>
             <Text variant="caption" color="inkTertiary">
-              {longDate(openedAt)}
+              {longDate(backdated ? fromDateKey(forDay) : openedAt)}
             </Text>
             <PressableScale
               onPress={() => router.back()}
@@ -261,6 +281,12 @@ export default function Compose() {
                 </View>
               ))}
             </View>
+          )}
+
+          {prompt !== null && (
+            <Text variant="title3" color="inkSecondary" style={styles.prompt}>
+              {prompt}
+            </Text>
           )}
 
           {/* Serif, generous leading, no border. This is the page. */}
@@ -501,6 +527,7 @@ function VideoCapture({
 }
 
 const styles = StyleSheet.create({
+  prompt: { marginBottom: space.sm },
   camera: { backgroundColor: '#000', flex: 1 },
   cameraBottom: { alignItems: 'center', bottom: 0, left: 0, position: 'absolute', right: 0 },
   cameraTop: { left: space.lg, position: 'absolute', top: 0 },

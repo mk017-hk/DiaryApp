@@ -5,7 +5,17 @@ import { useTheme, type Palette, type TextVariant } from '@/design';
 /** Palette keys that are legitimate text colours. */
 export type TextColor = Extract<
   keyof Palette,
-  'ink' | 'inkSecondary' | 'inkTertiary' | 'inkFaint' | 'accent' | 'danger' | 'success' | 'onAccent'
+  | 'ink'
+  | 'inkSecondary'
+  | 'inkTertiary'
+  | 'inkFaint'
+  | 'accent'
+  | 'danger'
+  | 'success'
+  | 'onAccent'
+  | 'onHero'
+  | 'period'
+  | 'fertile'
 >;
 
 export interface TextProps extends RNTextProps {

@@ -47,6 +47,8 @@ describe.each(palettes)('%s palette', (_name, palette) => {
     ['accent'],
     ['danger'],
     ['success'],
+    ['period'],
+    ['fertile'],
   ] as const)('%s meets AA for body text on canvas', (token) => {
     expect(contrastRatio(palette[token], palette.canvas)).toBeGreaterThanOrEqual(AA_BODY);
   });
@@ -61,6 +63,24 @@ describe.each(palettes)('%s palette', (_name, palette) => {
 
   it('renders button labels legibly on an accent fill', () => {
     expect(contrastRatio(palette.onAccent, palette.accent)).toBeGreaterThanOrEqual(AA_BODY);
+  });
+
+  it('keeps a cycle day legible under its number', () => {
+    expect(contrastRatio(palette.onAccent, palette.period)).toBeGreaterThanOrEqual(AA_BODY);
+    expect(contrastRatio(palette.onAccent, palette.fertile)).toBeGreaterThanOrEqual(AA_BODY);
+  });
+
+  it('keeps the words on Today’s circle readable across its whole gradient', () => {
+    // The circle's text is large, so the lighter end needs the large-text
+    // ratio and the darker end, where the button sits, the body ratio.
+    expect(contrastRatio(palette.onHero, palette.heroFrom)).toBeGreaterThanOrEqual(AA_LARGE);
+    expect(contrastRatio(palette.onHero, palette.heroTo)).toBeGreaterThanOrEqual(AA_BODY);
+  });
+
+  it('keeps every text colour readable on a card', () => {
+    for (const token of ['ink', 'inkSecondary', 'inkTertiary', 'accent'] as const) {
+      expect(contrastRatio(palette[token], palette.card)).toBeGreaterThanOrEqual(AA_BODY);
+    }
   });
 
   it('keeps decorative accent marks distinguishable from the canvas', () => {

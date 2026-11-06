@@ -14,6 +14,7 @@ import { ThemeProvider, fontAssets, space, useTheme } from '@/design';
 import { SessionProvider, useSession } from '@/features/auth';
 import { prepareDeviceFor } from '@/features/device';
 import { PendingConsent } from '@/features/assistant';
+import { CycleProvider } from '@/features/cycle';
 import { SyncProvider } from '@/features/entries';
 import { LockGate, LockProvider } from '@/features/lock';
 import { ProfileProvider, useProfile } from '@/features/profile';
@@ -60,7 +61,9 @@ export default function RootLayout() {
                     {/* Renders nothing. Delivers the answer onboarding took
                         before there was an account to record it against. */}
                     <PendingConsent />
-                    <ThemedStack />
+                    <CycleProvider>
+                      <ThemedStack />
+                    </CycleProvider>
                   </SyncProvider>
                 </LockGate>
               </LockProvider>
@@ -192,7 +195,21 @@ function ThemedStack() {
           name="compose"
           options={{ presentation: 'modal', animation: 'slide_from_bottom' }}
         />
+        <Stack.Screen
+          name="log"
+          options={{ presentation: 'modal', animation: 'slide_from_bottom' }}
+        />
+        <Stack.Screen
+          name="period"
+          options={{ presentation: 'modal', animation: 'slide_from_bottom' }}
+        />
         <Stack.Screen name="entry/[id]" options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="library/[id]" options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="cycle-settings" options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="reminders" options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="threads" options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="saved" options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="growth" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="thread/[id]" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="account" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="security" options={{ animation: 'slide_from_right' }} />

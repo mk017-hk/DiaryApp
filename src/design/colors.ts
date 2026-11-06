@@ -35,6 +35,18 @@ export interface Palette {
   successWash: string;
   scrim: string;
   onAccent: string;
+  /** Raised cards on the canvas. */
+  card: string;
+  /** Cycle marks. Fills carry `onAccent` text and must stay legible under it. */
+  period: string;
+  periodWash: string;
+  fertile: string;
+  fertileWash: string;
+  ovulation: string;
+  /** The gradient behind Today's circle, top to bottom, and the text on it. */
+  heroFrom: string;
+  heroTo: string;
+  onHero: string;
 }
 
 export const lightPalette = {
@@ -76,6 +88,28 @@ export const lightPalette = {
   scrim: 'rgba(31, 27, 24, 0.32)',
   /** Text/icons drawn on top of an accent or danger fill. */
   onAccent: '#FFFFFF',
+
+  /** White, and the one place it is allowed: a card lifted off warm paper. */
+  card: '#FFFFFF',
+
+  /**
+   * The cycle, in the same family as everything else. A period tracker's
+   * usual pinks and teals would make this screen look like a different app;
+   * a deeper clay for the period and a sage for the fertile window keep the
+   * brown, and still tell the two apart at a glance — and by shape, too, for
+   * anyone who cannot tell them apart by colour.
+   */
+  /** 5.7:1 under white. */
+  period: '#9A5244',
+  periodWash: '#F4E1DC',
+  /** 5.2:1 under white, 4.9:1 as text on canvas. */
+  fertile: '#557367',
+  fertileWash: '#E3ECE7',
+  ovulation: '#4E6E62',
+
+  heroFrom: '#B98472',
+  heroTo: '#8F5445',
+  onHero: '#FFFFFF',
 } as const satisfies Palette;
 
 export const darkPalette = {
@@ -109,6 +143,20 @@ export const darkPalette = {
   scrim: 'rgba(0, 0, 0, 0.56)',
   /** Dark ink on a light accent fill — 7.7:1. */
   onAccent: '#14110F',
+
+  card: '#1E1A17',
+
+  /** 7.7:1 under the dark onAccent. */
+  period: '#D89680',
+  periodWash: '#3A2620',
+  /** 8.1:1 under the dark onAccent. */
+  fertile: '#8FB2A3',
+  fertileWash: '#1F2A25',
+  ovulation: '#A9C9BB',
+
+  heroFrom: '#7A4A3D',
+  heroTo: '#4A2C24',
+  onHero: '#F5F0EA',
 } as const satisfies Palette;
 
 /**

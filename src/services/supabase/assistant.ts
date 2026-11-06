@@ -172,3 +172,34 @@ export async function dismissMessage(id: string): Promise<void> {
     toAppError(error, 'dismiss assistant message');
   }
 }
+
+/**
+ * The questions it has asked before, dismissed ones included.
+ *
+ * A dismissed question was put away from Today, not deleted; somebody looking
+ * back over what the assistant has said to her should see all of it.
+ */
+export async function recentMessages(limit = 10): Promise<AssistantMessage[]> {
+  if (!isSupabaseConfigured) return [];
+
+  try {
+    const { data, error } = await supabase
+      .from('ai_messages')
+      .select('id, kind, content, based_on_entry_ids, created_at')
+      .order('created_at', { ascending: false })
+      .limit(limit);
+
+    if (error !== null || data === null) return [];
+
+    return data.map((row) => ({
+      id: row.id as string,
+      kind: row.kind as 'question' | 'observation',
+      content: row.content as string,
+      basedOn: (row.based_on_entry_ids as string[] | null) ?? [],
+      createdAt: row.created_at as string,
+    }));
+  } catch (error) {
+    toAppError(error, 'read assistant history');
+    return [];
+  }
+}

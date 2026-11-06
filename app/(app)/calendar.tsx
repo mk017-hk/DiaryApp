@@ -3,40 +3,57 @@ import { useCallback, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { DiaryPage, PressableScale, Text } from '@/components';
-import { space, useTheme } from '@/design';
+import { Button, Card, Icon, PressableScale, Text } from '@/components';
+import { space, useTheme, type Palette } from '@/design';
+import {
+  calendarMarks,
+  cycleOn,
+  DayCell,
+  ENERGY,
+  FLOWS,
+  labelFor,
+  PHASE_LABELS,
+  SYMPTOMS,
+  useCycle,
+  type DayLog,
+  type DayMark,
+} from '@/features/cycle';
 import { datesWithEntries, entriesForDate, useEntryChanges, type Entry } from '@/features/entries';
-import { fromDateKey, longDate, monthGrid, monthName, toDateKey } from '@/lib/date';
+import { EntryCard } from '@/features/entries/EntryCard';
+import { daysBetween, fromDateKey, longDate, monthGrid, monthName, toDateKey } from '@/lib/date';
+import { DEFAULT_EMOTIONS } from '@/services/supabase/emotions';
 
 const WEEKDAY_INITIALS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
 
 /**
  * The calendar.
  *
- * How you get back to a particular day. Days you wrote on are marked with a
- * small filled dot rather than shading the whole cell — a month where you
- * missed most days should look calm, not like a chart of failures.
+ * A month, with everything on it: logged periods as filled discs, the next one
+ * as a dashed ring, the fertile window shaded, and a dot under any day with an
+ * entry or a log. Tap a day and everything about it is underneath — what was
+ * logged, what was written, and the way to add either.
+ *
+ * A month where most days are empty should still look calm. Nothing here
+ * marks a missed day.
  */
 export default function Calendar() {
   const theme = useTheme();
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const cycle = useCycle();
+  const tracking = cycle.settings.enabled;
 
-  // Read once, lazily, rather than on every render. A clock read during render
-  // is impure — React 19 says so — and here it would also mean the month grid
-  // could silently change month underneath someone at midnight.
-  const [todayKey] = useState(() => toDateKey(new Date()));
   const [cursor, setCursor] = useState(() => {
     const now = new Date();
     return new Date(now.getFullYear(), now.getMonth(), 1);
   });
-  const [marked, setMarked] = useState<Set<string>>(new Set());
-  const [selected, setSelected] = useState<string>(todayKey);
+  const [selected, setSelected] = useState<string>(() => toDateKey(new Date()));
+  const [entryDays, setEntryDays] = useState<Set<string>>(new Set());
   const [dayEntries, setDayEntries] = useState<Entry[]>([]);
 
   const load = useCallback(async () => {
     const [dates, found] = await Promise.all([datesWithEntries(), entriesForDate(selected)]);
-    setMarked(dates);
+    setEntryDays(dates);
     setDayEntries(found);
   }, [selected]);
 
@@ -45,183 +62,256 @@ export default function Calendar() {
       void load();
     }, [load]),
   );
-
-  // A sync landing has to move the dots too, not just the day below them.
   useEntryChanges(() => void load());
 
   const cells = monthGrid(cursor.getFullYear(), cursor.getMonth());
+  const first = toDateKey(new Date(cursor.getFullYear(), cursor.getMonth(), 1));
+  const last = toDateKey(new Date(cursor.getFullYear(), cursor.getMonth() + 1, 0));
+
+  const marks = tracking
+    ? calendarMarks(first, last, cycle.today, cycle.periodDays, cycle.periods, cycle.summary)
+    : new Map<string, DayMark>();
+
   const shiftMonth = (delta: number) =>
     setCursor(new Date(cursor.getFullYear(), cursor.getMonth() + delta, 1));
 
+  const log = cycle.logs.get(selected);
+  const future = daysBetween(cycle.today, selected) > 0;
+  const then = tracking ? cycleOn(selected, cycle.periods, cycle.summary) : null;
+  const selectedMark = marks.get(selected);
+
   return (
-    <DiaryPage ruled={false}>
+    <View style={[styles.fill, { backgroundColor: theme.colors.canvas }]}>
       <ScrollView
-        contentContainerStyle={[
-          styles.content,
-          { paddingTop: insets.top + space.lg, paddingBottom: space.xxxl },
-        ]}
+        contentContainerStyle={[styles.content, { paddingTop: insets.top + space.md }]}
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.monthHeader}>
-          <PressableScale
-            onPress={() => shiftMonth(-1)}
-            haptic="light"
-            accessibilityLabel="Previous month"
-            style={styles.arrow}
-          >
-            <Text variant="title3" color="inkTertiary">
-              ‹
-            </Text>
-          </PressableScale>
-
-          <Text variant="title2">
-            {monthName(cursor.getMonth())} {cursor.getFullYear()}
-          </Text>
-
-          <PressableScale
-            onPress={() => shiftMonth(1)}
-            haptic="light"
-            accessibilityLabel="Next month"
-            style={styles.arrow}
-          >
-            <Text variant="title3" color="inkTertiary">
-              ›
-            </Text>
-          </PressableScale>
-        </View>
-
-        <View style={styles.weekdays}>
-          {WEEKDAY_INITIALS.map((initial, index) => (
-            <View key={index} style={styles.cell}>
-              <Text variant="caption" color="inkFaint" align="center">
-                {initial}
+        <View style={styles.titleRow}>
+          <Text variant="title1">Calendar</Text>
+          {tracking && (
+            <PressableScale
+              onPress={() => router.push('/period')}
+              accessibilityLabel="Edit period dates"
+              style={[styles.editPill, { backgroundColor: theme.colors.periodWash }]}
+            >
+              <Icon name="water" size={16} color="period" />
+              <Text variant="label" color="period">
+                Edit period
               </Text>
-            </View>
-          ))}
+            </PressableScale>
+          )}
         </View>
 
-        <View style={styles.grid}>
-          {cells.map((dateKey, index) => {
-            if (dateKey === null)
-              return <View key={`blank-${String(index)}`} style={styles.cell} />;
+        <Card style={styles.monthCard}>
+          <View style={styles.monthHeader}>
+            <PressableScale onPress={() => shiftMonth(-1)} accessibilityLabel="Previous month">
+              <Icon name="chevron-left" size={28} color="inkSecondary" />
+            </PressableScale>
+            <Text variant="title3">
+              {monthName(cursor.getMonth())} {cursor.getFullYear()}
+            </Text>
+            <PressableScale onPress={() => shiftMonth(1)} accessibilityLabel="Next month">
+              <Icon name="chevron-right" size={28} color="inkSecondary" />
+            </PressableScale>
+          </View>
 
-            const date = fromDateKey(dateKey);
-            const isToday = dateKey === todayKey;
-            const isSelected = dateKey === selected;
-            const hasEntry = marked.has(dateKey);
+          <View style={styles.row}>
+            {WEEKDAY_INITIALS.map((initial, index) => (
+              <View key={index} style={styles.cell}>
+                <Text variant="caption" color="inkTertiary" align="center">
+                  {initial}
+                </Text>
+              </View>
+            ))}
+          </View>
 
-            return (
-              <PressableScale
-                key={dateKey}
-                onPress={() => setSelected(dateKey)}
-                haptic="selection"
-                ensureTouchTarget={false}
-                accessibilityLabel={longDate(date)}
-                accessibilityState={{ selected: isSelected }}
-                style={styles.cell}
-              >
-                <View
-                  style={[
-                    styles.day,
-                    isSelected && {
-                      backgroundColor: theme.colors.accent,
-                      borderRadius: theme.radius.full,
-                    },
-                  ]}
-                >
-                  <Text
-                    variant={isToday ? 'bodyMedium' : 'body'}
-                    color={isSelected ? 'onAccent' : isToday ? 'accent' : 'ink'}
-                    align="center"
-                  >
-                    {date.getDate()}
-                  </Text>
+          <View style={styles.grid}>
+            {cells.map((date, index) =>
+              date === null ? (
+                <View key={`blank-${String(index)}`} style={styles.cell} />
+              ) : (
+                <View key={date} style={styles.cell}>
+                  <DayCell
+                    date={date}
+                    mark={marks.get(date)}
+                    isToday={date === cycle.today}
+                    selected={date === selected}
+                    hasEntry={entryDays.has(date)}
+                    hasLog={cycle.logs.has(date)}
+                    future={daysBetween(cycle.today, date) > 0}
+                    onPress={setSelected}
+                    size={36}
+                  />
                 </View>
-                <View
-                  style={[
-                    styles.dot,
-                    {
-                      // On a selected day the cell behind is the accent, so the
-                      // dot has to lift off it rather than blend in.
-                      backgroundColor: !hasEntry
-                        ? 'transparent'
-                        : isSelected
-                          ? theme.colors.onAccent
-                          : theme.colors.accentSoft,
-                    },
-                  ]}
-                />
-              </PressableScale>
-            );
-          })}
-        </View>
+              ),
+            )}
+          </View>
 
-        {/* The long view, from the screen that is already about going back.
-            Not a third tab: two destinations is a deliberate decision, and a
-            row of icons would make this look like an app for managing things
-            rather than a place to keep them. */}
-        <PressableScale
-          onPress={() => router.push('/search')}
-          haptic="light"
-          accessibilityLabel="Search everything you have written"
-          style={styles.patterns}
-        >
-          <Text variant="callout" color="accent">
-            Search
-          </Text>
-        </PressableScale>
+          {tracking && (
+            <View style={styles.legend}>
+              <Legend color="period" label="Period" />
+              <Legend color="period" label="Expected" dashed />
+              <Legend color="fertileWash" label="Fertile" />
+              <Legend color="ovulation" label="Ovulation" ring />
+            </View>
+          )}
+        </Card>
 
-        <PressableScale
-          onPress={() => router.push('/patterns')}
-          haptic="light"
-          accessibilityLabel="See patterns over time"
-          style={styles.patterns}
-        >
-          <Text variant="callout" color="accent">
-            Patterns over time
-          </Text>
-        </PressableScale>
+        {/* ── The selected day ─────────────────────────────────── */}
+        <View style={styles.day}>
+          <Text variant="title3">{longDate(fromDateKey(selected))}</Text>
 
-        <View style={styles.selectedDay}>
-          <Text variant="overline" color="inkTertiary">
-            {longDate(fromDateKey(selected))}
-          </Text>
+          {tracking &&
+            then !== null &&
+            (then.dayOfCycle !== null || selectedMark !== undefined) && (
+              <Text variant="callout" color="inkSecondary">
+                {[
+                  then.dayOfCycle !== null && !future
+                    ? `Cycle day ${String(then.dayOfCycle)}`
+                    : null,
+                  selectedMark === 'predicted-period'
+                    ? 'Period expected'
+                    : selectedMark === 'period'
+                      ? 'Period'
+                      : selectedMark === 'ovulation'
+                        ? 'Estimated ovulation'
+                        : selectedMark === 'fertile'
+                          ? 'Fertile window'
+                          : then.phase !== null && !future
+                            ? PHASE_LABELS[then.phase]
+                            : null,
+                ]
+                  .filter((part): part is string => part !== null)
+                  .join(' · ')}
+              </Text>
+            )}
 
-          {dayEntries.length === 0 ? (
-            <Text variant="callout" color="inkTertiary">
+          {log !== undefined && (
+            <Card tone="surface">
+              <Text variant="overline" color="inkTertiary">
+                Logged
+              </Text>
+              <Text variant="callout" style={styles.logged}>
+                {describeLog(log)}
+              </Text>
+            </Card>
+          )}
+
+          {!future && (
+            <View style={styles.actions}>
+              <Button
+                label={log === undefined ? 'Log this day' : 'Edit log'}
+                variant="secondary"
+                onPress={() => router.push(`/log?date=${selected}`)}
+                style={styles.action}
+              />
+              <Button
+                label="Write"
+                variant="secondary"
+                onPress={() => router.push(`/compose?mode=write&date=${selected}`)}
+                style={styles.action}
+              />
+            </View>
+          )}
+
+          {dayEntries.map((entry) => (
+            <EntryCard
+              key={entry.id}
+              entry={entry}
+              onPress={() => router.push(`/entry/${entry.id}`)}
+            />
+          ))}
+
+          {dayEntries.length === 0 && !future && (
+            <Text variant="caption" color="inkTertiary">
               Nothing written on this day.
             </Text>
-          ) : (
-            dayEntries.map((entry) => (
-              <PressableScale
-                key={entry.id}
-                onPress={() => router.push(`/entry/${entry.id}`)}
-                haptic="light"
-                accessibilityLabel="Open entry"
-                style={styles.entryRow}
-              >
-                <Text variant="body" numberOfLines={3}>
-                  {entry.body.length > 0 ? entry.body : 'A recorded moment'}
-                </Text>
-              </PressableScale>
-            ))
           )}
         </View>
       </ScrollView>
-    </DiaryPage>
+    </View>
+  );
+}
+
+function describeLog(log: DayLog): string {
+  const parts: string[] = [];
+  if (log.flow !== undefined) parts.push(`${labelFor(FLOWS, log.flow)} flow`);
+  else if (log.period) parts.push('Period');
+  for (const slug of log.moods)
+    parts.push(DEFAULT_EMOTIONS.find((e) => e.slug === slug)?.label ?? slug);
+  for (const id of log.symptoms) parts.push(labelFor(SYMPTOMS, id));
+  if (log.energy !== undefined) parts.push(`${labelFor(ENERGY, log.energy)} energy`);
+  if (log.sleepHours !== undefined) parts.push(`${String(log.sleepHours)} hours’ sleep`);
+  if (log.water !== undefined) parts.push(`${String(log.water)} glasses of water`);
+  return parts.length > 0 ? parts.join(' · ') : 'Nothing yet';
+}
+
+function Legend({
+  color,
+  label,
+  dashed = false,
+  ring = false,
+}: {
+  color: keyof Palette;
+  label: string;
+  dashed?: boolean;
+  ring?: boolean;
+}) {
+  const theme = useTheme();
+  return (
+    <View style={styles.legendItem}>
+      <View
+        style={[
+          styles.legendSwatch,
+          dashed || ring
+            ? {
+                borderColor: theme.colors[color],
+                borderStyle: dashed ? 'dashed' : 'solid',
+                borderWidth: 2,
+              }
+            : { backgroundColor: theme.colors[color] },
+        ]}
+      />
+      <Text variant="caption" color="inkSecondary">
+        {label}
+      </Text>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  arrow: { paddingHorizontal: space.md, paddingVertical: space.xs },
-  cell: { alignItems: 'center', paddingVertical: space.xxs, width: `${100 / 7}%` },
-  content: { paddingHorizontal: space.lg },
-  day: { alignItems: 'center', height: 38, justifyContent: 'center', width: 38 },
-  dot: { borderRadius: 2, height: 4, marginTop: 2, width: 4 },
-  entryRow: { paddingVertical: space.sm },
-  grid: { flexDirection: 'row', flexWrap: 'wrap' },
-  monthHeader: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
-  patterns: { alignSelf: 'center', marginTop: space.lg, paddingVertical: space.xs },
-  selectedDay: { gap: space.xs, marginTop: space.xl },
-  weekdays: { flexDirection: 'row', marginTop: space.lg },
+  action: { flex: 1 },
+  actions: { flexDirection: 'row', gap: space.xs },
+  cell: { alignItems: 'center', width: `${100 / 7}%` },
+  content: { gap: space.lg, paddingBottom: space.xxl, paddingHorizontal: space.lg },
+  day: { gap: space.sm },
+  editPill: {
+    alignItems: 'center',
+    borderRadius: 999,
+    flexDirection: 'row',
+    gap: space.xxs,
+    minHeight: 36,
+    paddingHorizontal: space.sm,
+  },
+  fill: { flex: 1 },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', rowGap: space.xxs },
+  legend: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: space.md,
+    justifyContent: 'center',
+    marginTop: space.md,
+  },
+  legendItem: { alignItems: 'center', flexDirection: 'row', gap: space.xxs },
+  legendSwatch: { borderRadius: 7, height: 14, width: 14 },
+  logged: { marginTop: space.xxs },
+  monthCard: { paddingHorizontal: space.xs },
+  monthHeader: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: space.sm,
+  },
+  row: { flexDirection: 'row', marginBottom: space.xxs },
+  titleRow: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
 });
