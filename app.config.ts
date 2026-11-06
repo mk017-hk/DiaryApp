@@ -1,6 +1,23 @@
 import type { ConfigContext, ExpoConfig } from 'expo/config';
 
 /**
+ * Sign in with Apple, as an explicit opt-in: `APPLE_SIGN_IN=1`.
+ *
+ * Off by default because of a packaging detail that would otherwise stop the
+ * app being installed at all. `expo-apple-authentication` is one of the
+ * packages Expo applies automatically, and its plugin adds the
+ * `com.apple.developer.applesignin` entitlement unconditionally. A free Apple
+ * ID — the Personal Team Xcode gives anyone — cannot sign an app carrying that
+ * entitlement, so a local build on a phone fails before it starts.
+ *
+ * It also has to wait for the Apple provider to be enabled in Supabase, which
+ * needs the paid developer account. Until then the button could only fail.
+ * The same flag goes into `extra` so the button hides itself: iOS reports Sign
+ * in with Apple as available whether or not this build is entitled to use it.
+ */
+const appleSignIn = process.env.APPLE_SIGN_IN === '1';
+
+/**
  * Only values that are safe to ship inside the app binary belong here.
  * The Supabase anon key is designed for client distribution and is protected by
  * Row Level Security. The service role key must NEVER appear in this file, in
@@ -121,6 +138,10 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
           'Diary does not read your photo library. This is only asked for so it can save your own recordings into it.',
       },
     ],
+    // Last, so it sees the entitlement the auto-applied Apple plugin adds.
+    // Checked against the generated entitlements file, not assumed: mod order
+    // is the kind of thing that reads one way and runs the other.
+    ['./plugins/withAppleSignIn', { enabled: appleSignIn }],
   ],
   experiments: {
     typedRoutes: true,
@@ -128,5 +149,6 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   extra: {
     supabaseUrl: process.env.EXPO_PUBLIC_SUPABASE_URL ?? '',
     supabaseAnonKey: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? '',
+    appleSignIn,
   },
 });

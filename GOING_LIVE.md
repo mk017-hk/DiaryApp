@@ -188,12 +188,18 @@ the first week.
 2. Write an entry. Sign out. Sign back in. The entry is there.
 3. Sign out, tap **Forgot password**, follow the email. The app opens on
    _Choose a new password_; the new one works and the old one does not.
-4. With the app still holding account A's diary, sign in as account B. B sees
-   an empty diary, and nothing of A's appears in B's account.
+4. Somebody else signing in on a phone that still holds A's diary. A's session
+   has to end _without_ Sign out, which would wipe the phone anyway: delete A
+   in the dashboard (Authentication → Users) while the phone is signed in as
+   A. The app notices when its session next refreshes — up to an hour, since
+   the token it holds stays valid until then — and returns to the welcome
+   screen. Sign in as B there. B sees an empty diary, and nothing of A's
+   appears in B's account.
 5. Sign in as A on a second phone. On the first, reset A's password through
-   **Forgot password**. The second phone is signed out — and when A signs back
-   in there, the diary is still on it. (Resetting is the only way to change a
-   password in the app today; there is no change-password setting yet.)
+   **Forgot password**. The second phone is signed out when its session next
+   refreshes (again, up to an hour) — and when A signs back in there, the
+   diary is still on it. (Resetting is the only way to change a password in
+   the app today; there is no change-password setting yet.)
 6. Delete account B from the Account screen. Sign-in with B's details fails,
    and B's files are gone from Storage in the dashboard.
 
@@ -229,5 +235,12 @@ appleSignIn.ts`) and hidden until it can work. The other half is enabling the
   also only runs in a real build, not Expo Go.
 - **A change-password setting** for someone who knows their password and wants
   a new one. Today the reset flow is the only route.
+- **Shorter access tokens.** A session that has been revoked — by a password
+  reset, or an account deleted elsewhere — keeps working until its access
+  token expires, an hour by default, because the token is checked by
+  signature rather than looked up. Lowering the expiry (fifteen minutes is
+  common) shortens that window at the cost of more frequent refreshes. For an
+  app whose reset screen exists partly for people who fear someone else has
+  their password, it is worth doing.
 - **Leaked-password protection** (Pro): refuses passwords known from breaches.
   Worth turning on.

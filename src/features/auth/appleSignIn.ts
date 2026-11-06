@@ -28,6 +28,13 @@ export async function isAppleSignInAvailable(): Promise<boolean> {
   if (Platform.OS !== 'ios') return false;
   if (Constants.executionEnvironment === ExecutionEnvironment.StoreClient) return false;
 
+  // A third condition: whether this build was made with Apple sign-in at all
+  // (APPLE_SIGN_IN=1, see app.config.ts). Without the entitlement, iOS still
+  // reports Sign in with Apple as available, and the button would appear on
+  // the sign-in screen only to fail the moment anyone tapped it.
+  const extra = (Constants.expoConfig?.extra ?? {}) as { appleSignIn?: boolean };
+  if (extra.appleSignIn !== true) return false;
+
   try {
     return await AppleAuthentication.isAvailableAsync();
   } catch {

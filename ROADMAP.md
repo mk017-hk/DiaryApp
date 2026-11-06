@@ -18,7 +18,8 @@ detail, thread screen, security screen. Entry, thread, emotion and media sync,
 local-first with last-write-wins by authoring time. The assistant's context
 rules and consent, enforced in SQL. On This Day resurfacing with every way of
 switching it off. Patterns over time. Letters to yourself, sealed in the
-database. Shared diaries, with a page the other person cannot read. Search.
+database. Shared diaries in the database, with a page the other person cannot read —
+though the app cannot yet open a diary shared with you (Phase 9). Search.
 Export, as a machine-readable archive and as a page that opens in any browser.
 
 **Not built, and blocked on something other than code.** Transcription, push
@@ -459,7 +460,19 @@ letter waits on the screen rather than arriving.
 
 ---
 
-## Phase 9: shared diaries ✅ done
+## Phase 9: shared diaries — the database side is done, the app side is not
+
+**Correction, found while writing the Mac testing guide.** This phase was
+marked done when only its database half was. Invites, joining, membership,
+leaving, and `is_personal` entries and threads all work and are tested against
+Postgres. But **the app never shows a diary shared with you**: sync reads only
+the account's own diary (`pullEntries` filters on it), so a diary someone has
+shared appears on the Sharing screen by name and nowhere else. The invited
+person can neither read it nor write in it. Still to build: syncing more than
+one diary, a way to switch between them, and choosing which diary an entry is
+written into.
+
+What follows describes the database half, which stands.
 
 The schema was built for this from the first migration — entries live in a
 diary, diaries have members, every policy already asked `is_diary_member` — so

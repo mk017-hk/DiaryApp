@@ -81,7 +81,7 @@ export default function ResetPassword() {
     return (
       <AuthPage
         title="That's done."
-        subtitle="Your password is changed. Any other phone signed in to your diary has been signed out, in case somebody else had the old one — nothing on them is lost."
+        subtitle="Your password is changed. Any other phone signed in to your diary is being signed out — within the hour at most — in case somebody else had the old one. Nothing on them is lost."
       >
         <View style={styles.actions}>
           <Button label="Open my diary" onPress={() => router.replace('/')} fullWidth />

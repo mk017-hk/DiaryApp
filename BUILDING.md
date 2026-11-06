@@ -74,26 +74,26 @@ actually arrives, and the variables a build needs.
 
 ---
 
-## 3. Xcode on a borrowed Mac — free, expires every 7 days
+## 3. Xcode on your Mac — free, expires every 7 days
 
-A free Apple ID can sign an app through Xcode directly. The profile lasts
-**seven days**, after which the app refuses to open until it is re-signed.
+**See TESTING_ON_A_MAC.md**, which goes through it step by step: the
+Simulator with no Apple ID at all, then your own iPhone signed with a free
+one, then accounts and sync against a backend running on the Mac.
+
+In short, with Xcode installed and the right branch checked out:
 
 ```bash
-npx expo prebuild --platform ios   # generates ios/, which is gitignored
-npx expo run:ios --device          # installs pods, builds, installs
+npx expo run:ios            # the Simulator; no signing needed
+npx expo run:ios --device   # your iPhone, signed with a free Apple ID
 ```
 
-The first run asks which device and offers to set up signing. If it needs
-doing by hand: `open ios/Diary.xcworkspace`, then select the project →
-Signing & Capabilities → tick _Automatically manage signing_ → pick your Apple
-ID under Team.
+A free Apple ID's signature lasts **seven days**, after which the app refuses
+to open until the command is run again. Sign in with Apple is switched off in
+these builds, because a free Apple ID cannot sign an app that has the
+capability at all — see `app.config.ts`.
 
 `ios/` is generated, not committed. Delete it whenever; `prebuild` makes it
 again from `app.config.ts`, which is where the real configuration lives.
-
-Fine for seeing it on the phone. Not somewhere to keep a diary, because the
-seventh day arrives.
 
 ---
 
