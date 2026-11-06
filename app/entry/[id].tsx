@@ -1,9 +1,9 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { Alert, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { Button, DiaryPage, ErrorState, PressableScale, Text } from '@/components';
+import { Button, Chip, DiaryPage, ErrorState, Icon, PressableScale, Text } from '@/components';
 import { space, useTheme } from '@/design';
 import {
   audioOf,
@@ -43,6 +43,9 @@ export default function EntryDetail() {
 
   const [entry, setEntry] = useState<Entry | null | 'loading'>('loading');
   const [thread, setThread] = useState<Thread | null>(null);
+  /** The words and mood being edited, or null when reading. */
+  const [draft, setDraft] = useState<{ body: string; mood: number | null } | null>(null);
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -93,6 +96,35 @@ export default function EntryDetail() {
     router.back();
   };
 
+  // One tap used to delete outright. A diary entry may be the only record of
+  // a day; losing one to a mis-tap on the way to the back button is not a
+  // mistake an app should let anyone make.
+  const confirmRemove = () =>
+    Alert.alert(
+      'Delete this entry?',
+      'It goes from this phone and from your account, with anything recorded in it. This cannot be undone.',
+      [
+        { text: 'Keep it', style: 'cancel' },
+        { text: 'Delete', style: 'destructive', onPress: () => void remove() },
+      ],
+    );
+
+  /**
+   * Saving an edit.
+   *
+   * The entry keeps its date and its place: editing what you wrote about a
+   * Tuesday does not move it to today. Sync carries the change because
+   * `updateEntry` marks it unsynced with a new authoring time.
+   */
+  const saveEdit = async () => {
+    if (draft === null) return;
+    setSaving(true);
+    const updated = await updateEntry(entry.id, { body: draft.body.trim(), mood: draft.mood });
+    setSaving(false);
+    if (updated !== null) setEntry(updated);
+    setDraft(null);
+  };
+
   return (
     <DiaryPage>
       <ScrollView
@@ -104,21 +136,32 @@ export default function EntryDetail() {
       >
         <View style={styles.header}>
           <PressableScale onPress={() => router.back()} haptic="light" accessibilityLabel="Back">
-            <Text variant="callout" color="inkTertiary">
-              ‹ Back
-            </Text>
+            <Icon name="chevron-left" size={28} color="ink" />
           </PressableScale>
 
-          <PressableScale
-            onPress={() => void toggleFavourite()}
-            haptic="light"
-            accessibilityLabel={entry.isFavourite ? 'Remove from saved' : 'Save this moment'}
-            accessibilityState={{ selected: entry.isFavourite }}
-          >
-            <Text variant="callout" color={entry.isFavourite ? 'accent' : 'inkTertiary'}>
-              {entry.isFavourite ? 'Saved' : 'Save'}
-            </Text>
-          </PressableScale>
+          <View style={styles.headerActions}>
+            {draft === null && (
+              <PressableScale
+                onPress={() => setDraft({ body: entry.body, mood: entry.mood })}
+                haptic="light"
+                accessibilityLabel="Edit this entry"
+              >
+                <Icon name="pencil-outline" size={24} color="inkSecondary" />
+              </PressableScale>
+            )}
+            <PressableScale
+              onPress={() => void toggleFavourite()}
+              haptic="light"
+              accessibilityLabel={entry.isFavourite ? 'Remove from saved' : 'Save this moment'}
+              accessibilityState={{ selected: entry.isFavourite }}
+            >
+              <Icon
+                name={entry.isFavourite ? 'bookmark' : 'bookmark-outline'}
+                size={24}
+                color={entry.isFavourite ? 'accent' : 'inkSecondary'}
+              />
+            </PressableScale>
+          </View>
         </View>
 
         <View style={styles.dateBlock}>
@@ -167,13 +210,65 @@ export default function EntryDetail() {
           </View>
         )}
 
-        {entry.body.length > 0 && (
-          <Text
-            variant="body"
-            style={[styles.writing, { fontFamily: theme.fontFamily.serifRegular }]}
-          >
-            {entry.body}
-          </Text>
+        {draft !== null ? (
+          <View style={styles.editing}>
+            <TextInput
+              value={draft.body}
+              onChangeText={(body) => setDraft({ ...draft, body })}
+              multiline
+              autoFocus
+              textAlignVertical="top"
+              placeholder="Anything you want to add?"
+              placeholderTextColor={theme.colors.inkFaint}
+              accessibilityLabel="Your entry"
+              style={[
+                styles.writing,
+                styles.editor,
+                {
+                  color: theme.colors.ink,
+                  fontFamily: theme.fontFamily.serifRegular,
+                  backgroundColor: theme.colors.surface,
+                  borderRadius: theme.radius.md,
+                },
+              ]}
+            />
+            <Text variant="overline" color="inkTertiary">
+              How was it?
+            </Text>
+            <View style={styles.moods}>
+              {Object.entries(MOOD_LABELS).map(([value, label]) => (
+                <Chip
+                  key={value}
+                  label={label}
+                  selected={draft.mood === Number(value)}
+                  onPress={() =>
+                    setDraft({
+                      ...draft,
+                      mood: draft.mood === Number(value) ? null : Number(value),
+                    })
+                  }
+                />
+              ))}
+            </View>
+            <View style={styles.editActions}>
+              <Button
+                label="Save changes"
+                onPress={() => void saveEdit()}
+                loading={saving}
+                disabled={draft.body.trim().length === 0 && entry.media.length === 0}
+              />
+              <Button label="Cancel" variant="ghost" onPress={() => setDraft(null)} />
+            </View>
+          </View>
+        ) : (
+          entry.body.length > 0 && (
+            <Text
+              variant="body"
+              style={[styles.writing, { fontFamily: theme.fontFamily.serifRegular }]}
+            >
+              {entry.body}
+            </Text>
+          )
         )}
 
         {/* Editable here, not just displayed. What a day felt like is often
@@ -218,7 +313,7 @@ export default function EntryDetail() {
         </View>
 
         <View style={styles.footer}>
-          <Button label="Delete this entry" onPress={() => void remove()} variant="danger" />
+          <Button label="Delete this entry" onPress={confirmRemove} variant="danger" />
         </View>
       </ScrollView>
     </DiaryPage>
@@ -235,7 +330,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: space.sm,
     paddingVertical: space.xs,
   },
+  editActions: { flexDirection: 'row', gap: space.xs, marginTop: space.md },
+  editing: { gap: space.sm },
+  editor: { minHeight: 180, padding: space.md },
   header: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
+  headerActions: { flexDirection: 'row', gap: space.lg },
+  moods: { flexDirection: 'row', flexWrap: 'wrap', gap: space.xs },
   threadLink: { alignSelf: 'flex-start', paddingVertical: space.xxs },
   attachment: { marginTop: space.lg },
   photos: { gap: space.sm, marginTop: space.lg },

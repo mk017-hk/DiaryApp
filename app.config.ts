@@ -18,6 +18,15 @@ import type { ConfigContext, ExpoConfig } from 'expo/config';
 const appleSignIn = process.env.APPLE_SIGN_IN === '1';
 
 /**
+ * Push notifications, as an explicit opt-in: `PUSH_NOTIFICATIONS=1`.
+ *
+ * Off for the same reason as Sign in with Apple. Reminders are local
+ * notifications and work without it; the entitlement push needs cannot be
+ * signed by a free Apple ID. See `plugins/withPushEntitlement.js`.
+ */
+const push = process.env.PUSH_NOTIFICATIONS === '1';
+
+/**
  * Only values that are safe to ship inside the app binary belong here.
  * The Supabase anon key is designed for client distribution and is protected by
  * Row Level Security. The service role key must NEVER appear in this file, in
@@ -142,6 +151,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     // Checked against the generated entitlements file, not assumed: mod order
     // is the kind of thing that reads one way and runs the other.
     ['./plugins/withAppleSignIn', { enabled: appleSignIn }],
+    ['./plugins/withPushEntitlement', { enabled: push }],
   ],
   experiments: {
     typedRoutes: true,

@@ -1,4 +1,4 @@
-import { useFocusEffect, useRouter } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -26,7 +26,9 @@ export default function Search() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
-  const [query, setQuery] = useState('');
+  // A search can be started from elsewhere — tapping a name on Growth.
+  const { q } = useLocalSearchParams<{ q?: string }>();
+  const [query, setQuery] = useState(() => (typeof q === 'string' ? q : ''));
   const [entries, setEntries] = useState<Entry[]>([]);
   const [threads, setThreads] = useState<Thread[]>([]);
 

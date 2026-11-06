@@ -21,3 +21,16 @@ jest.mock('expo-font', () => ({
 jest.mock('@react-native-async-storage/async-storage', () =>
   require('@react-native-async-storage/async-storage/jest/async-storage-mock'),
 );
+
+// Notifications are a native module with no Jest build of its own. The wipe
+// cancels them, so anything that imports it would otherwise fail to load.
+jest.mock('expo-notifications', () => ({
+  setNotificationHandler: jest.fn(),
+  getPermissionsAsync: jest.fn(() => Promise.resolve({ granted: false, canAskAgain: true })),
+  requestPermissionsAsync: jest.fn(() => Promise.resolve({ granted: false })),
+  scheduleNotificationAsync: jest.fn(() => Promise.resolve('id')),
+  cancelAllScheduledNotificationsAsync: jest.fn(() => Promise.resolve()),
+  getLastNotificationResponseAsync: jest.fn(() => Promise.resolve(null)),
+  addNotificationResponseReceivedListener: jest.fn(() => ({ remove: jest.fn() })),
+  SchedulableTriggerInputTypes: { DAILY: 'daily', DATE: 'date' },
+}));

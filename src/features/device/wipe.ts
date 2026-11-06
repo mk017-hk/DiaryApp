@@ -2,6 +2,10 @@ import { clearCycleSettings, clearDayLogs } from '@/features/cycle';
 import { clearEntries, clearQuietDates, clearThreads } from '@/features/entries';
 import { resetSyncState } from '@/features/entries/sync';
 import { clearArchive } from '@/features/export';
+// By file, not through the feature's index: that also exports the scheduler
+// component, and the wipe has no business loading the router.
+import { clearReminderSettings } from '@/features/reminders/reminderSettings';
+import { cancelAllReminders } from '@/features/reminders/scheduler';
 import { clearLetters } from '@/features/letters';
 import { deleteAllCaptured, deleteAllRecordings } from '@/features/media';
 import { logger } from '@/services/logger';
@@ -35,6 +39,7 @@ export const ACCOUNT_KEYS = [
   // itself, and it is one person's. It goes with the account.
   'cycle.days.v1',
   'cycle.settings.v1',
+  'reminders.v1',
 ] as const;
 
 /**
@@ -86,6 +91,11 @@ export async function wipeDiaryFromDevice(options: {
     clearLetters(),
     clearDayLogs(),
     clearCycleSettings(),
+    clearReminderSettings(),
+    // Scheduled on the OS, not in storage: "your period may start tomorrow"
+    // arriving on a phone that now belongs to someone else would be the same
+    // leak as showing them the diary.
+    cancelAllReminders(),
     resetSyncState(),
     options.resetProfile(),
     deleteAllRecordings(),

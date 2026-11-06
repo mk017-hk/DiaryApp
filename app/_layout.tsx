@@ -15,6 +15,7 @@ import { SessionProvider, useSession } from '@/features/auth';
 import { prepareDeviceFor } from '@/features/device';
 import { PendingConsent } from '@/features/assistant';
 import { CycleProvider } from '@/features/cycle';
+import { ReminderScheduler } from '@/features/reminders';
 import { SyncProvider } from '@/features/entries';
 import { LockGate, LockProvider } from '@/features/lock';
 import { ProfileProvider, useProfile } from '@/features/profile';
@@ -62,6 +63,9 @@ export default function RootLayout() {
                         before there was an account to record it against. */}
                     <PendingConsent />
                     <CycleProvider>
+                      {/* Renders nothing. Keeps scheduled reminders in step
+                          with the cycle, letters and memories. */}
+                      <ReminderScheduler />
                       <ThemedStack />
                     </CycleProvider>
                   </SyncProvider>
