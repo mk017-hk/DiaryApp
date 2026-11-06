@@ -1,5 +1,6 @@
 import { useRouter } from 'expo-router';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { ScrollView, StyleSheet, Switch, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Card, ListRow, PressableScale, SectionHeader, Text } from '@/components';
@@ -8,6 +9,8 @@ import { useSession } from '@/features/auth';
 import { useCycle } from '@/features/cycle';
 import { useSync } from '@/features/entries';
 import { useProfile } from '@/features/profile';
+import { autoReflect, setAutoReflect } from '@/features/reflections';
+import { setTranscriptionEnabled, transcriptionEnabled } from '@/features/transcription';
 
 const APPEARANCE: { id: ThemePreference; label: string }[] = [
   { id: 'system', label: 'Match phone' },
@@ -31,6 +34,20 @@ export default function You() {
   const { state, pending } = useSync();
   const { settings } = useCycle();
   const { preference, setPreference } = useThemePreference();
+  const [transcribe, setTranscribe] = useState(true);
+  const [notes, setNotes] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    void Promise.all([transcriptionEnabled(), autoReflect()]).then(([t, n]) => {
+      if (cancelled) return;
+      setTranscribe(t);
+      setNotes(n);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const accountLine =
     status === 'signed-in'
@@ -131,6 +148,49 @@ export default function You() {
               title="Quiet dates"
               subtitle="Days you would rather not be reminded of"
               onPress={() => router.push('/quiet-dates')}
+            />
+          </Card>
+        </View>
+
+        {/* ── The assistant ────────────────────────────────── */}
+        <View>
+          <SectionHeader title="Your words" />
+          <Card>
+            <ListRow
+              icon="format-quote-open"
+              title="Transcribe recordings"
+              subtitle="On your iPhone. The recording never leaves it for this."
+              trailing={
+                <Switch
+                  value={transcribe}
+                  onValueChange={(value) => {
+                    setTranscribe(value);
+                    void setTranscriptionEnabled(value);
+                  }}
+                  trackColor={{ true: theme.colors.accent, false: theme.colors.border }}
+                  accessibilityLabel="Transcribe recordings"
+                />
+              }
+            />
+            <ListRow
+              icon="robot-outline"
+              title="Notes after each entry"
+              subtitle={
+                status === 'signed-in'
+                  ? 'The assistant reads a new entry and leaves notes and suggestions. Only with your permission, in Account.'
+                  : 'Needs an account.'
+              }
+              trailing={
+                <Switch
+                  value={notes}
+                  onValueChange={(value) => {
+                    setNotes(value);
+                    void setAutoReflect(value);
+                  }}
+                  trackColor={{ true: theme.colors.accent, false: theme.colors.border }}
+                  accessibilityLabel="Notes after each entry"
+                />
+              }
             />
           </Card>
         </View>

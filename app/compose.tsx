@@ -34,6 +34,7 @@ import {
   VoiceRecorder,
 } from '@/features/media';
 import { useProfile } from '@/features/profile';
+import { autoReflect, queueReflection } from '@/features/reflections';
 import { fromDateKey, longDate, toDateKey } from '@/lib/date';
 import { logger } from '@/services/logger';
 
@@ -170,6 +171,9 @@ export default function Compose() {
     );
 
     await updateEntry(entry.id, { media: durable });
+    // Notes from the assistant, once it has been transcribed and has synced.
+    // The runner waits for both; the function decides whether it may read it.
+    if (await autoReflect()) await queueReflection(entry.id);
     router.back();
   };
 

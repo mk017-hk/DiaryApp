@@ -60,7 +60,25 @@ export interface EntryMedia {
   remotePath?: string;
   remotePosterPath?: string;
   durationMs?: number;
+
+  /**
+   * What was said in it, transcribed on the phone that recorded it.
+   *
+   * Per recording rather than per entry, because that is where the database
+   * keeps it (`entry_media.transcript`) and because an entry can hold a video
+   * and a voice note that were two different things to say.
+   */
+  transcript?: string;
+  /**
+   * Where transcription has got to. Absent means not attempted yet.
+   * `unavailable` is a phone that cannot do it, which is not a failure.
+   */
+  transcriptStatus?: TranscriptStatus;
+  /** The account has this transcript. Bookkeeping, like `remotePath`. */
+  transcriptSynced?: boolean;
 }
+
+export type TranscriptStatus = 'pending' | 'done' | 'failed' | 'unavailable';
 
 export interface Entry {
   id: string;
@@ -152,6 +170,20 @@ export function audioOf(entry: Entry): EntryMedia | undefined {
 }
 
 /** Whether a piece of media is reachable at all, here or in the bucket. */
+/** Everything said across an entry's recordings, in the order they were added. */
+export function transcriptOf(entry: Entry): string {
+  const parts = entry.media
+    .map((item) => item.transcript?.trim() ?? '')
+    .filter((text) => text.length > 0);
+  if (parts.length > 0) return parts.join('\n\n');
+  return entry.transcript?.trim() ?? '';
+}
+
+/** A recording that speech can be heard in. Photos have nothing to transcribe. */
+export function canTranscribe(item: EntryMedia): boolean {
+  return item.kind === 'video' || item.kind === 'audio';
+}
+
 export function hasSomewhereToPlayFrom(item: EntryMedia): boolean {
   return item.uri !== undefined || item.remotePath !== undefined;
 }
@@ -454,6 +486,120 @@ export async function markMediaUploaded(
   await writeAll(entries);
 }
 
+// ---------------------------------------------------------------------------
+// Transcripts
+// ---------------------------------------------------------------------------
+
+/**
+ * Records a transcript, or how the attempt went.
+ *
+ * Like `markMediaUploaded`, this does not touch `updatedAt`: a transcript is
+ * written by the phone, not by her, and stamping the entry as edited would let
+ * it beat a real edit she made on another device in the meantime. It travels
+ * on its own path, `transcriptsToSend`, instead.
+ */
+export async function setMediaTranscript(
+  entryId: string,
+  mediaId: string,
+  result: { status: TranscriptStatus; transcript?: string },
+): Promise<void> {
+  const entries = await readAll();
+  const index = entries.findIndex((entry) => entry.id === entryId);
+  if (index === -1) return;
+
+  const entry = entries[index]!;
+  entries[index] = {
+    ...entry,
+    media: entry.media.map((item) => {
+      if (item.id !== mediaId) return item;
+      const { transcript: _old, ...rest } = item;
+      return {
+        ...rest,
+        transcriptStatus: result.status,
+        ...(result.transcript !== undefined ? { transcript: result.transcript } : {}),
+        transcriptSynced: false,
+      };
+    }),
+  };
+
+  await writeAll(entries);
+}
+
+export interface PendingTranscription {
+  entryId: string;
+  entryDate: string;
+  item: EntryMedia;
+}
+
+/**
+ * Recordings on this phone waiting to be transcribed, newest first.
+ *
+ * Anything asked for by hand (`pending`), plus anything never attempted from
+ * `since` onwards. The window keeps the first run on a phone with a year of
+ * videos from spending an evening transcribing all of them; older ones wait
+ * until she asks.
+ *
+ * Only files this phone holds: a recording that exists here only as a bucket
+ * path would have to be downloaded to be heard, and the phone that recorded it
+ * will do it instead.
+ */
+export async function recordingsToTranscribe(since: string): Promise<PendingTranscription[]> {
+  const entries = await readVisible();
+  return entries.flatMap((entry) =>
+    entry.media
+      .filter(
+        (item) =>
+          canTranscribe(item) &&
+          item.uri !== undefined &&
+          (item.transcriptStatus === 'pending' ||
+            (item.transcriptStatus === undefined && entry.entryDate >= since)),
+      )
+      .map((item) => ({ entryId: entry.id, entryDate: entry.entryDate, item })),
+  );
+}
+
+/** Transcripts the account has not got yet, for recordings it already has a row for. */
+export async function transcriptsToSend(): Promise<
+  { entryId: string; mediaId: string; transcript: string | null; status: TranscriptStatus }[]
+> {
+  const entries = await readAll();
+  return entries
+    .filter((entry) => entry.deletedAt === undefined)
+    .flatMap((entry) =>
+      entry.media
+        .filter(
+          (item) =>
+            item.remotePath !== undefined &&
+            item.transcriptSynced === false &&
+            (item.transcriptStatus === 'done' || item.transcriptStatus === 'failed'),
+        )
+        .map((item) => ({
+          entryId: entry.id,
+          mediaId: item.id,
+          transcript: item.transcript ?? null,
+          status: item.transcriptStatus as TranscriptStatus,
+        })),
+    );
+}
+
+export async function markTranscriptsSynced(mediaIds: string[]): Promise<void> {
+  if (mediaIds.length === 0) return;
+  const sent = new Set(mediaIds);
+  const entries = await readAll();
+  await writeAll(
+    entries.map((entry) =>
+      entry.media.some((item) => sent.has(item.id))
+        ? {
+            ...entry,
+            media: entry.media.map((item) =>
+              sent.has(item.id) ? { ...item, transcriptSynced: true } : item,
+            ),
+          }
+        : entry,
+    ),
+  );
+}
+
 /** Entries whose recording is still only on this phone. */
 export interface PendingUpload {
   entryId: string;
@@ -497,6 +643,23 @@ function mergeMedia(local: EntryMedia[], remote: EntryMedia[]): EntryMedia[] {
         : {}),
       ...(item.remotePosterPath === undefined && here?.remotePosterPath !== undefined
         ? { remotePosterPath: here.remotePosterPath }
+        : {}),
+      // A transcript made here and not yet sent is still the only copy of it.
+      ...(item.transcript === undefined && here?.transcript !== undefined
+        ? {
+            transcript: here.transcript,
+            ...(here.transcriptStatus !== undefined
+              ? { transcriptStatus: here.transcriptStatus }
+              : {}),
+            ...(here.transcriptSynced !== undefined
+              ? { transcriptSynced: here.transcriptSynced }
+              : {}),
+          }
+        : {}),
+      ...(item.transcript === undefined &&
+      here?.transcript === undefined &&
+      here?.transcriptStatus !== undefined
+        ? { transcriptStatus: here.transcriptStatus }
         : {}),
     });
   }

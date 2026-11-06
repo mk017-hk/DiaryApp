@@ -37,6 +37,7 @@ import { isOpenable, listLetters, type Letter } from '@/features/letters';
 import { articleForPhase } from '@/features/library';
 import { EntryCard } from '@/features/entries/EntryCard';
 import { useProfile } from '@/features/profile';
+import { LatestNotes } from '@/features/reflections';
 import { DEFAULT_EMOTIONS } from '@/services/supabase/emotions';
 import {
   daysBetween,
@@ -260,6 +261,9 @@ export default function Today() {
             </Card>
           )}
           {!tracking && <CaptureRow onCapture={write} />}
+
+          {/* ── The assistant's notes on the latest entry ───── */}
+          <LatestNotes />
 
           {/* ── Daily insights ───────────────────────────────── */}
           <View>

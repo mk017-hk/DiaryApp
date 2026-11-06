@@ -14,7 +14,13 @@ import { useSession } from '@/features/auth';
 import { deleteCaptured, deleteRecording } from '@/features/media';
 import { logger } from '@/services/logger';
 import { AppError } from '@/services/supabase/errors';
-import { ownDiary, pullEntries, pushEntries, type SyncContext } from '@/services/supabase/entries';
+import {
+  ownDiary,
+  pullEntries,
+  pushEntries,
+  pushTranscripts,
+  type SyncContext,
+} from '@/services/supabase/entries';
 import { forgetEmotions } from '@/services/supabase/emotions';
 import { forgetSignedUrls, reconcilePendingMedia, uploadMedia } from '@/services/supabase/media';
 import { sealedLetters, sendLetters } from '@/services/supabase/letters';
@@ -86,6 +92,7 @@ function remoteFor(context: SyncContext): SyncRemote {
     pushMutes: (mutes) => pushMutes(mutes, context),
     pullMutes: () => pullMutes(context),
     pushCycleDays: (logs) => pushCycleDays(logs, context),
+    pushTranscripts: (transcripts) => pushTranscripts(transcripts),
     pullCycleDays: (since) => pullCycleDays(since),
     sendLetters: (letters) => sendLetters(letters, context),
     pullLetters: async () => {

@@ -61,6 +61,8 @@ interface EntryRowWithMedia extends EntryRow {
     duration_ms: number | null;
     status: string;
     position: number;
+    transcript?: string | null;
+    transcript_status?: string | null;
   }[];
   entry_emotions?: { emotion_id: string }[];
 }
@@ -151,6 +153,13 @@ export function fromRow(row: EntryRowWithMedia, slugById?: Map<string, string>):
       remotePath: item.storage_path,
       ...(item.poster_path !== null ? { remotePosterPath: item.poster_path } : {}),
       ...(item.duration_ms !== null ? { durationMs: item.duration_ms } : {}),
+      // A transcript the account holds came from the phone that recorded it,
+      // so it is already synced by definition.
+      ...(typeof item.transcript === 'string' && item.transcript.length > 0
+        ? { transcript: item.transcript, transcriptStatus: 'done' as const, transcriptSynced: true }
+        : item.transcript_status === 'failed'
+          ? { transcriptStatus: 'failed' as const, transcriptSynced: true }
+          : {}),
     }));
 
   return entry;
@@ -172,7 +181,7 @@ export const COLUMNS =
 const SELECT = COLUMNS;
 
 /** The pull wants the media paths too, in the same round trip. */
-const SELECT_WITH_MEDIA = `${COLUMNS}, entry_media(id, kind, storage_path, poster_path, duration_ms, status, position), entry_emotions(emotion_id)`;
+const SELECT_WITH_MEDIA = `${COLUMNS}, entry_media(id, kind, storage_path, poster_path, duration_ms, status, position, transcript, transcript_status), entry_emotions(emotion_id)`;
 
 // ---------------------------------------------------------------------------
 // Push
@@ -366,4 +375,43 @@ export async function ownDiary(): Promise<{ id: string; shared: boolean } | null
 /** @deprecated Use `ownDiary`, which still finds it once the diary is shared. */
 export async function personalDiaryId(): Promise<string | null> {
   return (await ownDiary())?.id ?? null;
+}
+
+/**
+ * Sends transcripts made on this phone to the recordings' rows.
+ *
+ * One update per recording, returning the ids that took. A recording whose row
+ * the account does not have yet is skipped by the caller, not here: the update
+ * would match nothing and report success.
+ */
+export async function pushTranscripts(
+  transcripts: {
+    mediaId: string;
+    transcript: string | null;
+    status: 'done' | 'failed' | 'pending' | 'unavailable';
+  }[],
+): Promise<{ ok: true; value: string[] } | { ok: false; error: AppError }> {
+  if (transcripts.length === 0) return { ok: true, value: [] };
+  if (!isSupabaseConfigured) {
+    return { ok: false, error: new AppError('unknown', 'No account service in this build.') };
+  }
+
+  const accepted: string[] = [];
+  try {
+    for (const item of transcripts) {
+      const { data, error } = await supabase
+        .from('entry_media')
+        .update({
+          transcript: item.transcript,
+          transcript_status: item.status === 'done' ? 'done' : 'failed',
+        })
+        .eq('id', item.mediaId)
+        .select('id');
+      if (error !== null) return { ok: false, error: toAppError(error, 'push transcripts') };
+      if ((data ?? []).length > 0) accepted.push(item.mediaId);
+    }
+    return { ok: true, value: accepted };
+  } catch (error) {
+    return { ok: false, error: toAppError(error, 'push transcripts') };
+  }
 }

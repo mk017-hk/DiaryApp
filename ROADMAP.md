@@ -30,13 +30,20 @@ readable and writable by the invited person, with a page the other person
 cannot read. Search. Export, as a machine-readable archive and as a page that
 opens in any browser, cycle data included.
 
-**Not built, and blocked on something other than code.** Transcription and
-video compression need native modules outside Expo Go — a development build,
-which the Mac now makes possible but which has not been set up. Push
+**Built, and not yet seen on a phone.** Transcription on the device — Apple's
+speech recognition, on-device only, with a small local native module
+(`modules/audio-extract`) that copies a video's sound into an audio file for
+it — and the assistant's notes and suggestions on each entry, through the
+`reflect` function. The Swift cannot be compiled where this was written, so
+the first `npx expo run:ios` on the Mac is its first compile.
+
+**Not built, and blocked on something other than code.** Video compression
+needs native code outside Expo Go too, and has not been started. Push
 notifications (as opposed to the local reminders) and Sign in with Apple need
 the paid Apple Developer account; both are switched off by flags until then.
-The assistant's model call needs a provider key in Supabase secrets, and so
-does a conversational assistant on the Ask tab. Anything on a real phone
+The assistant's model calls — the daily question and the notes — need an
+Anthropic API key in Supabase secrets, and so would a conversational assistant
+on the Ask tab. Anything on a real phone
 against real data needs a hosted Supabase project — GOING_LIVE.md is the whole
 procedure. Billing needs RevenueCat and App Store Connect. Memory movies need
 a music licence. The DPIA needs a person, not a program — and cycle data makes

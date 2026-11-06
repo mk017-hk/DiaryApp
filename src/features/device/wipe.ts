@@ -6,6 +6,8 @@ import { clearArchive } from '@/features/export';
 // component, and the wipe has no business loading the router.
 import { clearReminderSettings } from '@/features/reminders/reminderSettings';
 import { cancelAllReminders } from '@/features/reminders/scheduler';
+import { clearReflectionQueue } from '@/features/reflections/queue';
+import { clearTranscriptionSetting } from '@/features/transcription/settings';
 import { clearLetters } from '@/features/letters';
 import { deleteAllCaptured, deleteAllRecordings } from '@/features/media';
 import { logger } from '@/services/logger';
@@ -41,6 +43,9 @@ export const ACCOUNT_KEYS = [
   'cycle.settings.v1',
   'cycle.watermark.v1',
   'reminders.v1',
+  'transcription.v1',
+  'reflections.pending.v1',
+  'reflections.v1',
 ] as const;
 
 /**
@@ -93,6 +98,8 @@ export async function wipeDiaryFromDevice(options: {
     clearDayLogs(),
     clearCycleSettings(),
     clearReminderSettings(),
+    clearTranscriptionSetting(),
+    clearReflectionQueue(),
     // Scheduled on the OS, not in storage: "your period may start tomorrow"
     // arriving on a phone that now belongs to someone else would be the same
     // leak as showing them the diary.

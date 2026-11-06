@@ -1,6 +1,7 @@
 import type { Entry, QuietDates, Thread } from '@/features/entries';
 import type { CycleSettings } from '@/features/cycle/cycleMath';
 import type { DayLog } from '@/features/cycle/dayLogStore';
+import { transcriptOf } from '@/features/entries/entryStore';
 import type { Letter } from '@/features/letters';
 import type { Profile } from '@/features/profile/profileStore';
 
@@ -177,7 +178,8 @@ export function buildArchive(input: ArchiveInput): Archive {
       ...(item.remotePath !== undefined ? { remotePath: item.remotePath } : {}),
       ...(item.durationMs !== undefined ? { durationMs: item.durationMs } : {}),
     })),
-    ...(entry.transcript !== undefined ? { transcript: entry.transcript } : {}),
+    // What was said, across every recording, as transcribed on the phone.
+    ...(transcriptOf(entry).length > 0 ? { transcript: transcriptOf(entry) } : {}),
     favourite: entry.isFavourite,
     ...(entry.aiExcluded === true ? { keptFromAssistant: true } : {}),
     ...(entry.resurfaceExcluded === true ? { keptFromResurfacing: true } : {}),

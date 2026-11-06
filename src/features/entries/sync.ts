@@ -18,8 +18,10 @@ import {
   applyRemote,
   markMediaUploaded,
   markSynced,
+  markTranscriptsSynced,
   mediaNeedingUpload,
   purgeEntries,
+  transcriptsToSend,
   unsyncedEntries,
   type Entry,
   type PendingUpload,
@@ -113,6 +115,14 @@ export interface SyncRemote {
    * from a watermark in the account's own time.
    */
   pushCycleDays?(logs: DayLog[]): Promise<RemoteResult<DayLog[]>>;
+  /**
+   * Transcripts, one way: only the phone that recorded something can
+   * transcribe it, and the pull brings them to the others on the media rows.
+   * Returns the media ids the account accepted.
+   */
+  pushTranscripts?(
+    transcripts: { mediaId: string; transcript: string | null; status: 'done' | 'failed' }[],
+  ): Promise<RemoteResult<string[]>>;
   pullCycleDays?(
     since: string | null,
   ): Promise<RemoteResult<{ logs: DayLog[]; watermark: string | null }>>;
@@ -326,6 +336,10 @@ async function runSync(remote: SyncRemote, options: SyncOptions): Promise<SyncRe
   // nothing pointing at them.
   uploaded = await uploadPendingMedia(remote);
 
+  // After the recordings, for the same reason: the transcript goes on the
+  // recording's row, which an upload is what creates.
+  await sendTranscripts(remote);
+
   return {
     status: 'ok',
     pushed,
@@ -489,6 +503,19 @@ async function syncCycle(remote: SyncRemote): Promise<number> {
   }
 
   return touched;
+}
+
+/** Transcripts made here, onto rows the account already has. Never fatal. */
+async function sendTranscripts(remote: SyncRemote): Promise<void> {
+  if (remote.pushTranscripts === undefined) return;
+  const queued = (await transcriptsToSend()).map(({ mediaId, transcript, status }) => ({
+    mediaId,
+    transcript,
+    status: status === 'done' ? ('done' as const) : ('failed' as const),
+  }));
+  if (queued.length === 0) return;
+  const result = await remote.pushTranscripts(queued);
+  if (result.ok) await markTranscriptsSynced(result.value);
 }
 
 /**

@@ -1,0 +1,7 @@
+{
+  "name": "audio-extract",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Copies the sound out of a recorded video into an audio file, on the phone.",
+  "main": "index.ts"
+}

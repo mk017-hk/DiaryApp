@@ -351,6 +351,53 @@ export type Database = {
           },
         ]
       }
+      entry_reflections: {
+        Row: {
+          created_at: string
+          diary_id: string
+          entry_id: string
+          feelings: string[]
+          id: string
+          model: string
+          notes: string
+          suggestions: Json
+          themes: string[]
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          diary_id: string
+          entry_id: string
+          feelings?: string[]
+          id?: string
+          model: string
+          notes: string
+          suggestions?: Json
+          themes?: string[]
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          diary_id?: string
+          entry_id?: string
+          feelings?: string[]
+          id?: string
+          model?: string
+          notes?: string
+          suggestions?: Json
+          themes?: string[]
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "entry_reflections_entry_id_diary_id_fkey"
+            columns: ["entry_id", "diary_id"]
+            isOneToOne: false
+            referencedRelation: "journal_entries"
+            referencedColumns: ["id", "diary_id"]
+          },
+        ]
+      }
       entry_tags: {
         Row: {
           diary_id: string
@@ -728,6 +775,20 @@ export type Database = {
           id: string
           unlock_on: string
           unlocked_at: string
+        }[]
+      }
+      reflection_source: {
+        Args: { target: string }
+        Returns: {
+          body: string
+          diary_id: string
+          emotions: string[]
+          entry_date: string
+          entry_id: string
+          mood: number
+          thread_title: string
+          transcript: string
+          updated_at: string
         }[]
       }
       resurfacing_candidates: {

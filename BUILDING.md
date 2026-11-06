@@ -114,7 +114,10 @@ Worth knowing about, not worth doing instead of option 2.
 These are inert in Expo Go and only start working once the app is built
 properly (options 2 or 3):
 
-- **Transcription** of video and voice entries (not built yet).
+- **Transcription** of video and voice entries — built, on the phone, but only
+  in a build made with `npx expo run:ios` or EAS. Expo Go cannot carry the
+  native code it needs, and the app simply leaves recordings untranscribed
+  there.
 - **Sign in with Apple.**
 - **Video compression**, so a long recording is not a 400MB upload (not built
   yet).

@@ -18,6 +18,8 @@ import {
   type Thread,
 } from '@/features/entries';
 import { deleteRecording, PhotoNote, VideoNote, VoiceNote } from '@/features/media';
+import { autoReflect, queueReflection, ReflectionCard } from '@/features/reflections';
+import { TranscriptBlock } from '@/features/transcription';
 import { fromDateKey, fullDate, longDate } from '@/lib/date';
 
 const MOOD_LABELS: Record<number, string> = {
@@ -123,6 +125,8 @@ export default function EntryDetail() {
     setSaving(false);
     if (updated !== null) setEntry(updated);
     setDraft(null);
+    // The notes were about the old words. Fresh ones once the edit has synced.
+    if (await autoReflect()) await queueReflection(entry.id);
   };
 
   return (
@@ -271,6 +275,18 @@ export default function EntryDetail() {
           )
         )}
 
+        {draft === null && (
+          <View style={styles.understood}>
+            <TranscriptBlock entry={entry} />
+            <ReflectionCard
+              entry={entry}
+              onKeep={() => {
+                if (!entry.isFavourite) void toggleFavourite();
+              }}
+            />
+          </View>
+        )}
+
         {/* Editable here, not just displayed. What a day felt like is often
             clearer a week later than it was at the time. */}
         <EmotionPicker
@@ -321,6 +337,7 @@ export default function EntryDetail() {
 }
 
 const styles = StyleSheet.create({
+  understood: { gap: space.sm, marginTop: space.lg },
   content: { paddingRight: space.lg },
   dateBlock: { gap: space.xxs, marginTop: space.lg },
   footer: { marginTop: space.xxxl },

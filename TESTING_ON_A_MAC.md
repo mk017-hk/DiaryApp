@@ -84,6 +84,11 @@ What you can test here, and how:
 - **Voice notes:** the Simulator uses your Mac's microphone.
 - **Video:** the one thing you cannot test here. The Simulator has no camera.
   That is step 3.
+- **Transcription:** record a voice note, save it, and open the entry. _What
+  you said_ fills in after a few seconds; the first time, iOS asks whether
+  Diary may use speech recognition. This needs this kind of build — in Expo
+  Go the entry says so instead. If the Simulator's speech recognition is not
+  set up for your language, try it on the phone in step 3.
 
 This is a **Debug** build: it loads its code from Metro, the server the
 command starts. Leave that Terminal window open. Edits to the code reload
@@ -143,7 +148,7 @@ they are local notifications, scheduled on the phone, and need neither. See
 ## 4. Accounts, sync and sharing: a backend on your Mac
 
 The whole Supabase stack runs on your Mac. Nothing is hosted; nothing costs
-anything. It is the same stack the 326 integration tests run against.
+anything. It is the same stack the 361 integration tests run against.
 
 **Once:** install **Docker Desktop** (or OrbStack, which is lighter) and start
 it.
@@ -182,6 +187,13 @@ written into the app when it is built, so restarting Metro alone is not
 enough. A rebuild after the first is about a minute.
 
 ### Things worth trying
+
+- **Notes on an entry.** Turn the assistant on (You → Account), write or
+  record something, and open it once it has synced. Without an API key the
+  notes card says the assistant is not connected yet — that is the local stack
+  working. To see real notes, put a key in `supabase/functions/.env` as
+  `ANTHROPIC_API_KEY=...` (gitignored) and restart
+  `npx supabase functions serve`.
 
 - **Sign up.** Confirmation emails are off on the local stack, so you are in
   straight away.
@@ -222,7 +234,7 @@ enough. A rebuild after the first is about a minute.
 ## The test suites, on the Mac
 
 ```bash
-npm run verify            # typecheck, lint, and the 490 unit tests
+npm run verify            # typecheck, lint, and the 521 unit tests
 ```
 
 The integration tests need the local stack from step 4, plus the Edge
@@ -230,7 +242,7 @@ Functions running in a second Terminal window:
 
 ```bash
 npx supabase functions serve      # leave this running
-npm run test:rls                  # 326 tests against the real database
+npm run test:rls                  # 361 tests against the real database
 ```
 
 ---

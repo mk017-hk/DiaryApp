@@ -16,6 +16,8 @@ import { prepareDeviceFor } from '@/features/device';
 import { PendingConsent } from '@/features/assistant';
 import { CycleProvider } from '@/features/cycle';
 import { ReminderScheduler } from '@/features/reminders';
+import { ReflectionRunner } from '@/features/reflections';
+import { TranscriptionRunner } from '@/features/transcription';
 import { SyncProvider } from '@/features/entries';
 import { LockGate, LockProvider } from '@/features/lock';
 import { ProfileProvider, useProfile } from '@/features/profile';
@@ -66,6 +68,12 @@ export default function RootLayout() {
                       {/* Renders nothing. Keeps scheduled reminders in step
                           with the cycle, letters and memories. */}
                       <ReminderScheduler />
+                      {/* Renders nothing. Transcribes recordings on the phone,
+                          where this build is able to. */}
+                      <TranscriptionRunner />
+                      {/* Renders nothing. Asks for the assistant's notes on
+                          new entries once they are transcribed and synced. */}
+                      <ReflectionRunner />
                       <ThemedStack />
                     </CycleProvider>
                   </SyncProvider>

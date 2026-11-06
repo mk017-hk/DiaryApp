@@ -21,6 +21,11 @@ The account system is built. Nothing in this document is code.
   emails.
 - **Export and deletion**, both complete, both including media and cycle
   data.
+- **Transcription on the phone, and notes on each entry.** Video and voice
+  entries are transcribed by Apple's on-device speech recognition — the
+  recording never leaves the phone for it. The assistant then reads what was
+  written and said, with consent and never what she has held back, and leaves
+  notes and up to three suggestions beside the entry.
 - **Cycle data kept apart.** Periods and daily logs live in their own table,
   keyed by the person rather than by a diary, readable by the owner and nobody
   else — not even somebody she shares her diary with. The assistant never
@@ -85,19 +90,30 @@ npx supabase link --project-ref xxxx
 # emotion vocabulary. The project starts empty; this is all of it.
 npx supabase db push
 
-# Account deletion (required by the App Store) and the assistant.
+# Account deletion (required by the App Store), the daily question, and
+# the notes the assistant leaves on each entry.
 npx supabase functions deploy delete-account
 npx supabase functions deploy assistant
+npx supabase functions deploy reflect
 ```
 
 The functions receive `SUPABASE_URL`, `SUPABASE_ANON_KEY` and
-`SUPABASE_SERVICE_ROLE_KEY` automatically. The assistant also wants a model
-key, which can wait — until it is set the assistant assembles its context and
-stops short of calling a model:
+`SUPABASE_SERVICE_ROLE_KEY` automatically. The assistant and the notes also
+want an Anthropic API key (from console.anthropic.com). That can wait: until
+it is set, both check every rule — consent, held-back entries, private
+threads — and stop short of calling a model, and the app says the assistant
+is not connected yet.
 
 ```bash
 npx supabase secrets set ANTHROPIC_API_KEY=sk-ant-...
 ```
+
+**What the notes cost.** `reflect` uses Anthropic's current Opus model by
+default (the one named in `supabase/functions/reflect/index.ts`), one request
+per entry — typically a few pence each. Each
+account is capped at 40 a day, and an entry that already has notes is not
+sent again unless it has been edited or she taps _Ask again_. To use a
+different model, set `REFLECT_MODEL`.
 
 **Do not run `supabase config push`.** It copies `supabase/config.toml` to the
 hosted project, and that file is deliberately set up for local development:

@@ -118,6 +118,19 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       },
     ],
     [
+      'expo-speech-recognition',
+      {
+        // Shown once, the first time a recording is transcribed. On-device
+        // recognition is required by the app, so this sentence is true.
+        speechRecognitionPermission:
+          'Diary turns what you say in a video or voice note into words, on your iPhone. The recording is never sent anywhere to do this.',
+        // The plugin sets the microphone sentence too; this keeps it the same
+        // as the camera's rather than a generic default.
+        microphonePermission:
+          'Diary uses the microphone only while you are recording. Nothing is ever recorded in the background.',
+      },
+    ],
+    [
       'expo-image-picker',
       {
         photosPermission:

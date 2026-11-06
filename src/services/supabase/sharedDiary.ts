@@ -30,7 +30,7 @@ export interface SharedEntry extends Entry {
 
 const PAGE = 50;
 
-const SELECT = `${COLUMNS}, entry_media(id, kind, storage_path, poster_path, duration_ms, status, position), entry_emotions(emotion_id)`;
+const SELECT = `${COLUMNS}, entry_media(id, kind, storage_path, poster_path, duration_ms, status, position, transcript, transcript_status), entry_emotions(emotion_id)`;
 
 const noService = () => new AppError('unknown', 'No account service in this build.');
 
