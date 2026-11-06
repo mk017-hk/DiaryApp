@@ -553,3 +553,100 @@ describe('finding your own diary after sharing it', () => {
     expect(data?.[0]?.id).toEqual(bob.diaryId);
   });
 });
+
+/**
+ * The invited person, using the diary.
+ *
+ * The same queries the shared-diary screen makes, in the same shape, so the
+ * screen is proven against the policies rather than assumed to fit them.
+ */
+describe('reading and writing a diary that was shared with you', () => {
+  /** What `readSharedDiary` asks for. */
+  const readAsTheScreenDoes = (user: TestUser) =>
+    user.client
+      .from('journal_entries')
+      .select('id, body, author_id, is_personal')
+      .eq('diary_id', alice.diaryId)
+      .is('deleted_at', null)
+      .order('entry_at', { ascending: false });
+
+  /** What `writeToSharedDiary` sends. */
+  const writeAsTheScreenDoes = (user: TestUser, body: string, isPersonal = false) =>
+    user.client
+      .from('journal_entries')
+      .insert({
+        id: crypto.randomUUID(),
+        diary_id: alice.diaryId,
+        author_id: user.user.id,
+        body,
+        entry_date: '2026-11-06',
+        entry_at: new Date().toISOString(),
+        mood: null,
+        is_favourite: false,
+        is_personal: isPersonal,
+        resurface_excluded: false,
+        ai_excluded: false,
+        thread_id: null,
+        deleted_at: null,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .select('id')
+      .single();
+
+  beforeEach(share);
+
+  it('shows what she shared, and not what she kept for herself', async () => {
+    await createEntry(alice, { body: 'for both of us' });
+    await createEntry(alice, { body: 'only mine', is_personal: true });
+
+    const { data } = await readAsTheScreenDoes(bob);
+    expect((data ?? []).map((row) => row.body)).toEqual(['for both of us']);
+  });
+
+  it('lets him add to it, and she finds it in her own pull', async () => {
+    const { error } = await writeAsTheScreenDoes(bob, 'written by bob');
+    expect(error).toBeNull();
+
+    const { data } = await alice.client
+      .from('journal_entries')
+      .select('body, author_id')
+      .eq('diary_id', alice.diaryId);
+    expect(data).toEqual([{ body: 'written by bob', author_id: bob.user.id }]);
+  });
+
+  it('keeps his "just for me" from her', async () => {
+    await writeAsTheScreenDoes(bob, 'bob alone', true);
+    expect(await bodiesVisibleTo(alice, alice.diaryId)).toEqual([]);
+    expect((await readAsTheScreenDoes(bob)).data?.map((row) => row.body)).toEqual(['bob alone']);
+  });
+
+  it('lets him delete his own entry and not hers', async () => {
+    const mine = await writeAsTheScreenDoes(bob, 'bob wrote this');
+    const hers = await createEntry(alice, { body: 'alice wrote this' });
+    const stamp = { deleted_at: new Date().toISOString(), updated_at: new Date().toISOString() };
+
+    await bob.client
+      .from('journal_entries')
+      .update(stamp)
+      .eq('id', mine.data?.id as string);
+    await bob.client.from('journal_entries').update(stamp).eq('id', hers);
+
+    expect((await readAsTheScreenDoes(alice)).data?.map((row) => row.body)).toEqual([
+      'alice wrote this',
+    ]);
+  });
+
+  it('cannot write into it in her name', async () => {
+    const { error } = await bob.client
+      .from('journal_entries')
+      .insert({ diary_id: alice.diaryId, author_id: alice.user.id, body: 'forged' });
+    expect(error).not.toBeNull();
+  });
+
+  it('reads nothing once he has left', async () => {
+    await createEntry(alice, { body: 'for both of us' });
+    await unshare();
+    expect((await readAsTheScreenDoes(bob)).data).toEqual([]);
+  });
+});

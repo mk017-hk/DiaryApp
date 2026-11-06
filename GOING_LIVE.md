@@ -19,7 +19,15 @@ The account system is built. Nothing in this document is code.
   both land on `diary://auth/callback`, and a forgotten password is recoverable
   on the phone. Proven end to end against the real auth server and its real
   emails.
-- **Export and deletion**, both complete, both including media.
+- **Export and deletion**, both complete, both including media and cycle
+  data.
+- **Cycle data kept apart.** Periods and daily logs live in their own table,
+  keyed by the person rather than by a diary, readable by the owner and nobody
+  else — not even somebody she shares her diary with. The assistant never
+  reads it.
+- **Sharing that works from both sides.** The invited person can open, read
+  and add to a shared diary; anything marked _Just for me_ stays with its
+  author.
 
 What is missing is somewhere for it to run. Today it runs against a Supabase
 stack inside a development container. Real accounts need a hosted project.
@@ -202,6 +210,10 @@ the first week.
    the app today; there is no change-password setting yet.)
 6. Delete account B from the Account screen. Sign-in with B's details fails,
    and B's files are gone from Storage in the dashboard.
+7. Turn on cycle tracking as A and mark a period. In the dashboard's Table
+   Editor, `cycle_days` shows A's rows. Share A's diary with a new account C:
+   C can read the diary on the Sharing screen and sees nothing of A's cycle
+   anywhere.
 
 Email links need either a real build (`diary://`) or Expo Go pointed at the
 **development** project with `exp://**` allowed.
@@ -212,8 +224,9 @@ Email links need either a real build (`diary://`) or Expo Go pointed at the
   for this app it needs to say plainly: what is stored, where (London), who can
   read it (nobody but the account holder, and the assistant only with consent),
   and how to export and delete it — all of which the app already does.
-- **A DPIA.** Inferring emotional patterns from someone's diary is arguably
-  special category data under UK GDPR Article 9. The consent the app records
+- **A DPIA.** Cycle data is health data — special category under UK GDPR
+  Article 9 without any argument — and inferring emotional patterns from
+  someone's diary arguably is too. The consent the app records
   is probably the lawful basis, but have the assessment written down. This is
   the legal risk in the product, not the security model.
 - **Backups confirmed** — on Pro, check the dashboard shows them.

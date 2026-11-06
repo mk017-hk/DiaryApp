@@ -39,6 +39,19 @@ interface Diary {
   ownerId: string;
 }
 
+/**
+ * What to call a diary somebody else shared.
+ *
+ * Its own title is the owner's — "My diary", usually — which reads as yours on
+ * your screen. Their name is what tells you whose it is.
+ */
+function sharedTitle(diary: Diary, members: DiaryMember[] | undefined): string {
+  const owner = members?.find((member) => member.role === 'owner')?.displayName;
+  return owner !== null && owner !== undefined && owner.length > 0
+    ? `${owner}’s diary`
+    : diary.title;
+}
+
 export default function Sharing() {
   const router = useRouter();
   const theme = useTheme();
@@ -219,7 +232,17 @@ export default function Sharing() {
             </Text>
             {theirs.map((diary) => (
               <View key={diary.id} style={styles.row}>
-                <Text variant="body">{diary.title}</Text>
+                <PressableScale
+                  onPress={() => router.push(`/shared/${diary.id}`)}
+                  haptic="light"
+                  accessibilityLabel={`Open ${sharedTitle(diary, members[diary.id])}`}
+                  style={styles.open}
+                >
+                  <Text variant="body">{sharedTitle(diary, members[diary.id])}</Text>
+                  <Text variant="caption" color="accent">
+                    Open ›
+                  </Text>
+                </PressableScale>
                 <PressableScale
                   onPress={() => leave(diary)}
                   haptic="light"
@@ -265,6 +288,7 @@ export default function Sharing() {
 }
 
 const styles = StyleSheet.create({
+  open: { flex: 1, gap: 2 },
   code: { alignItems: 'flex-start', gap: space.xs, padding: space.md },
   copy: { paddingHorizontal: space.xs, paddingVertical: space.xxs },
   page: { gap: space.md, paddingTop: space.xl },

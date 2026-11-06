@@ -10,24 +10,37 @@ except resurfacing is blocked on Phase 1 and Phase 2.
 
 ## Where the repo actually is
 
-**Built.** Design system with contrast tests. Full Postgres schema with Row
-Level Security, a two-user isolation suite, a third user who was never a member
-and a former member. App lock with PIN, biometrics and a privacy cover.
-Onboarding, Today, calendar, compose with all four capture formats, entry
-detail, thread screen, security screen. Entry, thread, emotion and media sync,
-local-first with last-write-wins by authoring time. The assistant's context
-rules and consent, enforced in SQL. On This Day resurfacing with every way of
-switching it off. Patterns over time. Letters to yourself, sealed in the
-database. Shared diaries in the database, with a page the other person cannot read —
-though the app cannot yet open a diary shared with you (Phase 9). Search.
-Export, as a machine-readable archive and as a page that opens in any browser.
+**Built.** Design system with contrast tests, redesigned around a cycle
+tracker's layout in the same brown palette: five tabs (Today, Calendar,
+Insights, Ask, You), Today's ring, a daily check-in and a row of small cards.
+Full Postgres schema with Row Level Security, a two-user isolation suite, a
+third user who was never a member and a former member. App lock with PIN,
+biometrics and a privacy cover. Onboarding, including optional cycle setup.
+Compose with all four capture formats, for today or a past day, from a
+prompt; entries editable after saving. Entry, thread, emotion, media and
+cycle sync, local-first with last-write-wins by authoring time and pulls
+measured in the account's time. Cycle tracking: periods, predictions, the
+fertile window, a daily log, cycle history and what was logged in each
+phase — owner-only in the database, never part of a shared diary. Local
+reminders, discreet by default. The assistant's context rules and consent,
+enforced in SQL. On This Day resurfacing with every way of switching it off.
+Patterns, Growth (names, recurring words, how each month felt), threads and
+saved entries. Letters to yourself, sealed in the database. Shared diaries,
+readable and writable by the invited person, with a page the other person
+cannot read. Search. Export, as a machine-readable archive and as a page that
+opens in any browser, cycle data included.
 
-**Not built, and blocked on something other than code.** Transcription, push
-notifications, video compression and Sign in with Apple all need a development
-build, which needs an Apple Developer account. The assistant's model call needs
-a provider key in Supabase secrets. Anything on a real phone against real data
-needs a hosted Supabase project — GOING_LIVE.md is the whole procedure. Billing needs RevenueCat and App Store Connect.
-Memory movies need a music licence. The DPIA needs a person, not a program.
+**Not built, and blocked on something other than code.** Transcription and
+video compression need native modules outside Expo Go — a development build,
+which the Mac now makes possible but which has not been set up. Push
+notifications (as opposed to the local reminders) and Sign in with Apple need
+the paid Apple Developer account; both are switched off by flags until then.
+The assistant's model call needs a provider key in Supabase secrets, and so
+does a conversational assistant on the Ask tab. Anything on a real phone
+against real data needs a hosted Supabase project — GOING_LIVE.md is the whole
+procedure. Billing needs RevenueCat and App Store Connect. Memory movies need
+a music licence. The DPIA needs a person, not a program — and cycle data makes
+it more necessary, not less.
 
 **Not built, and not blocked.** The dashboard half of Phase 7, which wants
 `ai_messages` rows and the `people` and `location_label` columns — both of which
@@ -460,17 +473,20 @@ letter waits on the screen rather than arriving.
 
 ---
 
-## Phase 9: shared diaries — the database side is done, the app side is not
+## Phase 9: shared diaries
 
-**Correction, found while writing the Mac testing guide.** This phase was
-marked done when only its database half was. Invites, joining, membership,
-leaving, and `is_personal` entries and threads all work and are tested against
-Postgres. But **the app never shows a diary shared with you**: sync reads only
-the account's own diary (`pullEntries` filters on it), so a diary someone has
-shared appears on the Sharing screen by name and nowhere else. The invited
-person can neither read it nor write in it. Still to build: syncing more than
-one diary, a way to switch between them, and choosing which diary an entry is
-written into.
+**The app side, now built.** This phase was once marked done when only its
+database half was: the invited person could see a shared diary's name and
+nothing else. They can now open it from Sharing, read it, add to it, keep
+something "just for me" inside it, and delete what they wrote.
+
+A diary shared with you is read from the account each time it is opened and
+is **not** copied to your phone — deliberately unlike your own diary. It is
+theirs: a copy on your phone would sit beyond the reach of their deleting an
+entry or ending the share. The cost is that it needs a connection, which for
+somebody else's diary is the right trade. Entries the owner kept for
+themselves are never sent at all; the integration suite runs the screen's own
+queries as the invited person to prove it.
 
 What follows describes the database half, which stands.
 

@@ -214,6 +214,7 @@ function ThemedStack() {
         <Stack.Screen name="threads" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="saved" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="growth" options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="shared/[id]" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="thread/[id]" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="account" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="security" options={{ animation: 'slide_from_right' }} />

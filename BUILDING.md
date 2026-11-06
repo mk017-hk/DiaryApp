@@ -88,9 +88,10 @@ npx expo run:ios --device   # your iPhone, signed with a free Apple ID
 ```
 
 A free Apple ID's signature lasts **seven days**, after which the app refuses
-to open until the command is run again. Sign in with Apple is switched off in
-these builds, because a free Apple ID cannot sign an app that has the
-capability at all — see `app.config.ts`.
+to open until the command is run again. Sign in with Apple and push
+notifications are switched off in these builds, because a free Apple ID cannot
+sign an app with either capability — see `app.config.ts`. Reminders are local
+and unaffected.
 
 `ios/` is generated, not committed. Delete it whenever; `prebuild` makes it
 again from `app.config.ts`, which is where the real configuration lives.
@@ -113,13 +114,16 @@ Worth knowing about, not worth doing instead of option 2.
 These are inert in Expo Go and only start working once the app is built
 properly (options 2 or 3):
 
-- **Transcription** of video and voice entries.
-- **Notifications** — the morning question, and a resurfaced memory.
+- **Transcription** of video and voice entries (not built yet).
 - **Sign in with Apple.**
-- **Video compression**, so a long recording is not a 400MB upload.
+- **Video compression**, so a long recording is not a 400MB upload (not built
+  yet).
 
-Everything else — all four capture formats, the calendar, patterns, quiet
-dates, letters, sharing, search, export, the app lock — works in Expo Go today.
+Everything else — all four capture formats, cycle tracking and the daily log,
+the calendar, insights, patterns, growth, quiet dates, letters, sharing,
+search, export, the app lock, and reminders — works in Expo Go today.
+Reminders are local notifications and need a phone rather than a browser, but
+not a real build.
 
 ---
 

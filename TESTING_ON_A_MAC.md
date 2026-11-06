@@ -131,17 +131,19 @@ and running the command again re-signs it. Your diary on the phone is not
 lost when that happens; it is there again once the app is re-signed. You can
 have three apps signed this way at once.
 
-**Sign in with Apple is switched off in these builds**, on purpose. A free
-Apple ID cannot sign an app that has the capability at all — Xcode refuses
-outright. It comes back with `APPLE_SIGN_IN=1` once there is a paid account
-and Apple is enabled as a provider in Supabase. See `app.config.ts`.
+**Sign in with Apple and push notifications are switched off in these
+builds**, on purpose. A free Apple ID cannot sign an app that has either
+capability — Xcode refuses outright. They come back with `APPLE_SIGN_IN=1` and
+`PUSH_NOTIFICATIONS=1` once there is a paid account. Reminders still work:
+they are local notifications, scheduled on the phone, and need neither. See
+`app.config.ts`.
 
 ---
 
 ## 4. Accounts, sync and sharing: a backend on your Mac
 
 The whole Supabase stack runs on your Mac. Nothing is hosted; nothing costs
-anything. It is the same stack the 302 integration tests run against.
+anything. It is the same stack the 326 integration tests run against.
 
 **Once:** install **Docker Desktop** (or OrbStack, which is lighter) and start
 it.
@@ -185,15 +187,15 @@ enough. A rebuild after the first is about a minute.
   straight away.
 - **Two devices, one account.** The Simulator and your iPhone, both pointed at
   the Mac's IP address. Write on one, and it appears on the other.
-- **Sharing — the parts that exist.** Sign up a second account on the other
-  device, invite it from **Account → Sharing**, and join with the code. Both
-  sides then show each other on the Sharing screen, the owner's compose screen
-  offers _Just for me_, and the invited person can leave. **What does not exist
-  yet: the invited person cannot open the shared diary.** Sync only reads an
-  account's own diary, so a diary shared with you appears on the Sharing screen
-  by name and nowhere else. The database side — who can read what, private
-  entries inside a shared diary — is built and tested; the screens to read and
-  write a diary that is not yours are the missing piece.
+- **Sharing.** Sign up a second account on the other device, invite it from
+  **You → Sharing**, and join with the code. The invited person opens the
+  diary from **Sharing → Shared with you**, reads it, and can add to it — and
+  anything the owner wrote with _Just for me_ on never appears for them. A
+  shared diary is read live from the account, so that device needs to reach
+  the Mac.
+- **Cycle tracking across two devices.** Mark a period on one; it appears on
+  the other after a sync. Then share the diary with the second account and
+  check that nothing about the cycle is visible there.
 - **Somebody else signing in on your phone.** This needs account A's session
   to end _without_ tapping Sign out, which wipes the phone anyway. With the
   phone signed in as A, delete A in Supabase Studio (Authentication → Users).
@@ -220,7 +222,7 @@ enough. A rebuild after the first is about a minute.
 ## The test suites, on the Mac
 
 ```bash
-npm run verify            # typecheck, lint, and the 406 unit tests
+npm run verify            # typecheck, lint, and the 490 unit tests
 ```
 
 The integration tests need the local stack from step 4, plus the Edge
@@ -228,19 +230,19 @@ Functions running in a second Terminal window:
 
 ```bash
 npx supabase functions serve      # leave this running
-npm run test:rls                  # 302 tests against the real database
+npm run test:rls                  # 326 tests against the real database
 ```
 
 ---
 
 ## When something goes wrong
 
-| What you see                                                                  | What it means                                                                                       |
-| ----------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
-| _Project is incompatible with this version of Expo Go_                        | You are on `main`. `git checkout claude/journal-app-setup-dmpoba`, then `npm ci`.                   |
-| _Personal development teams do not support the Sign in with Apple capability_ | An old checkout, or `APPLE_SIGN_IN=1` is set. Pull, and unset it.                                   |
-| _Untrusted Developer_                                                         | Settings → General → VPN & Device Management → Trust.                                               |
-| The app opens to a red screen saying it cannot connect to Metro               | Debug build, and the phone cannot see the Mac. Same Wi-Fi, Metro running — or make a Release build. |
-| _iOS 2x.x is not installed_                                                   | Xcode → Settings → Components, and install the iOS platform.                                        |
-| Sign-in says there is no account service                                      | `.env.local` is missing or wrong, or the app was not rebuilt after you changed it.                  |
-| The app worked last week and now will not open                                | The free seven days ran out. Run the build command again.                                           |
+| What you see                                                    | What it means                                                                                       |
+| --------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| _Project is incompatible with this version of Expo Go_          | You are on `main`. `git checkout claude/journal-app-setup-dmpoba`, then `npm ci`.                   |
+| _Personal development teams do not support the … capability_    | An old checkout, or `APPLE_SIGN_IN=1` / `PUSH_NOTIFICATIONS=1` is set. Pull, and unset them.        |
+| _Untrusted Developer_                                           | Settings → General → VPN & Device Management → Trust.                                               |
+| The app opens to a red screen saying it cannot connect to Metro | Debug build, and the phone cannot see the Mac. Same Wi-Fi, Metro running — or make a Release build. |
+| _iOS 2x.x is not installed_                                     | Xcode → Settings → Components, and install the iOS platform.                                        |
+| Sign-in says there is no account service                        | `.env.local` is missing or wrong, or the app was not rebuilt after you changed it.                  |
+| The app worked last week and now will not open                  | The free seven days ran out. Run the build command again.                                           |
