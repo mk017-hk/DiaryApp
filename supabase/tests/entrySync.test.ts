@@ -78,16 +78,22 @@ const row = (device: TestUser, over: Record<string, unknown> = {}) => ({
 const push = (device: TestUser, rows: Record<string, unknown>[]) =>
   device.client.from('journal_entries').upsert(rows, { onConflict: 'id' }).select('*');
 
+/** The column the app's pull measures its watermark in. */
+const WATERMARK = 'synced_at';
+
 const pull = (device: TestUser, since: string | null) => {
   let query = device.client
     .from('journal_entries')
     .select('*')
     .eq('diary_id', device.diaryId)
-    .order('updated_at', { ascending: true });
+    .order(WATERMARK, { ascending: true });
 
-  if (since !== null) query = query.gte('updated_at', since);
+  if (since !== null) query = query.gte(WATERMARK, since);
   return query;
 };
+
+const watermarkOf = (rows: Record<string, unknown>[] | null) =>
+  (rows?.[rows.length - 1]?.[WATERMARK] as string | undefined) ?? null;
 
 describe('the done criterion: written in flight mode, read on another device', () => {
   it('carries an entry written hours ago, offline, to a second device', async () => {
@@ -199,19 +205,19 @@ describe('pulling only what changed', () => {
     await push(phone, [entry]);
 
     const { data: first } = await pull(tablet, null);
-    const watermark = first?.[first.length - 1]?.updated_at as string;
+    const watermark = watermarkOf(first) as string;
 
     // The bound is inclusive on purpose, so the row that set the watermark
     // comes back and nothing written in the same millisecond is skipped.
     const { data: second } = await pull(tablet, watermark);
 
     expect((second ?? []).length).toBeLessThanOrEqual(1);
-    expect((second ?? []).every((r) => r.updated_at >= watermark)).toBe(true);
+    expect((second ?? []).every((r) => (r[WATERMARK] as string) >= watermark)).toBe(true);
   });
 
   it('returns a row edited after the watermark', async () => {
     const { data: before } = await pull(tablet, null);
-    const watermark = before?.[before.length - 1]?.updated_at as string;
+    const watermark = watermarkOf(before);
 
     const entry = row(phone, {
       body: 'after the watermark',
@@ -222,6 +228,43 @@ describe('pulling only what changed', () => {
     const { data } = await pull(tablet, watermark);
 
     expect((data ?? []).some((r) => r.id === entry.id)).toBe(true);
+  });
+});
+
+describe('an edit that was made offline and sent late', () => {
+  /*
+   * The case a watermark in the phone's own time gets wrong. The tablet pulls
+   * at noon. A phone that was offline all morning sends something written at
+   * nine. Measured by when it was written, that edit is behind the tablet's
+   * watermark, and the tablet would never see it — not on the next pull, not
+   * ever. Measured by when the account accepted it, it is simply new.
+   */
+  it('still reaches a device that pulled after it was written', async () => {
+    await push(phone, [row(phone, { body: 'noon', updated_at: '2026-09-08T12:00:00.000Z' })]);
+    const { data: before } = await pull(tablet, null);
+    const watermark = watermarkOf(before);
+
+    const late = row(phone, {
+      body: 'written offline at nine',
+      updated_at: '2026-09-08T09:00:00.000Z',
+    });
+    await push(phone, [late]);
+
+    const { data } = await pull(tablet, watermark);
+    expect((data ?? []).some((r) => r.id === late.id)).toBe(true);
+  });
+
+  it('does not move for an edit the account refused as stale', async () => {
+    const entry = row(phone, { body: 'newer', updated_at: '2026-09-09T12:00:00.000Z' });
+    await push(phone, [entry]);
+    const { data: before } = await pull(tablet, null);
+    const watermark = watermarkOf(before);
+
+    await push(phone, [{ ...entry, body: 'older', updated_at: '2026-09-09T08:00:00.000Z' }]);
+
+    const { data } = await pull(tablet, watermark);
+    // Only the boundary row, which the inclusive bound always returns.
+    expect((data ?? []).filter((r) => r.id === entry.id && r.body === 'older')).toEqual([]);
   });
 });
 

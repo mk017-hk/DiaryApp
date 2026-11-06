@@ -35,6 +35,8 @@ const profile: Profile = {
 };
 
 const input = (overrides: Partial<ArchiveInput> = {}): ArchiveInput => ({
+  cycleDays: [],
+  cycleSettings: { enabled: false, cycleLength: 28, periodLength: 5, onPill: false },
   entries: [],
   threads: [],
   quietDates: [],
@@ -344,6 +346,39 @@ describe('nothing is quietly left out', () => {
 
   it('says when it was made', () => {
     expect(buildArchive(input()).exportedAt).toEqual('2026-10-01T12:00:00.000Z');
+  });
+});
+
+describe('the cycle', () => {
+  const logged = {
+    date: '2026-09-02',
+    period: true,
+    flow: 'heavy' as const,
+    symptoms: ['cramps' as const],
+    moods: ['sad'],
+    intimacy: [],
+    updatedAt: '2026-09-02T10:00:00.000Z',
+    unsynced: false,
+  };
+
+  it('carries every logged day, without the sync bookkeeping', () => {
+    const archive = buildArchive(input({ cycleDays: [logged] }));
+    expect(archive.cycle.days).toEqual([
+      {
+        date: '2026-09-02',
+        period: true,
+        flow: 'heavy',
+        symptoms: ['cramps'],
+        moods: ['sad'],
+        intimacy: [],
+      },
+    ]);
+  });
+
+  it('puts them on the readable page too', () => {
+    const page = renderArchiveHtml(buildArchive(input({ cycleDays: [logged] })));
+    expect(page).toContain('Your cycle');
+    expect(page).toContain('Period, heavy');
   });
 });
 

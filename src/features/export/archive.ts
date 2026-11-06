@@ -1,4 +1,6 @@
 import type { Entry, QuietDates, Thread } from '@/features/entries';
+import type { CycleSettings } from '@/features/cycle/cycleMath';
+import type { DayLog } from '@/features/cycle/dayLogStore';
 import type { Letter } from '@/features/letters';
 import type { Profile } from '@/features/profile/profileStore';
 
@@ -22,7 +24,7 @@ import type { Profile } from '@/features/profile/profileStore';
 export const ARCHIVE_VERSION = 1;
 
 /** Every kind of thing this app keeps. Adding a store means adding it here. */
-export const STORES = ['entries', 'threads', 'quietDates', 'letters', 'profile'] as const;
+export const STORES = ['entries', 'threads', 'quietDates', 'letters', 'cycle', 'profile'] as const;
 
 export interface ArchiveMedia {
   id: string;
@@ -79,6 +81,13 @@ export interface Archive {
     /** True when the letter is still sealed, so its absence is explained. */
     sealed: boolean;
   }[];
+  /** Every logged day, exactly as logged. Present even when tracking is off. */
+  cycle: {
+    tracking: boolean;
+    usualCycleDays: number;
+    usualPeriodDays: number;
+    days: Omit<DayLog, 'updatedAt' | 'unsynced'>[];
+  };
   profile: {
     name: string;
     tone: string;
@@ -124,6 +133,8 @@ export interface ArchiveInput {
   threads: Thread[];
   quietDates: QuietDates[];
   letters: Letter[];
+  cycleDays: DayLog[];
+  cycleSettings: CycleSettings;
   profile: Profile;
   exportedAt?: Date;
 }
@@ -207,6 +218,14 @@ export function buildArchive(input: ArchiveInput): Archive {
       ...(letter.body !== undefined ? { body: letter.body } : {}),
       sealed: letter.body === undefined,
     })),
+    cycle: {
+      tracking: input.cycleSettings.enabled,
+      usualCycleDays: input.cycleSettings.cycleLength,
+      usualPeriodDays: input.cycleSettings.periodLength,
+      days: [...input.cycleDays]
+        .sort((a, b) => a.date.localeCompare(b.date))
+        .map(({ updatedAt: _updatedAt, unsynced: _unsynced, ...day }) => day),
+    },
     profile: {
       name: input.profile.name,
       tone: input.profile.tone,
@@ -314,6 +333,29 @@ export function renderArchiveHtml(archive: Archive): string {
           )
           .join('\n')}</section>`;
 
+  const cycle =
+    archive.cycle.days.length === 0
+      ? ''
+      : `<section class="cycle"><h2>Your cycle</h2>${archive.cycle.days
+          .map((day) => {
+            const parts = [
+              day.period ? (day.flow !== undefined ? `Period, ${day.flow}` : 'Period') : null,
+              day.flow === 'spotting' ? 'Spotting' : null,
+              day.symptoms.length > 0 ? day.symptoms.join(', ') : null,
+              day.moods.length > 0 ? `Felt ${day.moods.join(', ')}` : null,
+              day.energy !== undefined ? `Energy ${day.energy}` : null,
+              day.sleepHours !== undefined ? `${String(day.sleepHours)}h sleep` : null,
+              day.water !== undefined ? `${String(day.water)} glasses of water` : null,
+              day.discharge !== undefined ? `Discharge ${day.discharge}` : null,
+              day.intimacy.length > 0 ? `Sex and drive: ${day.intimacy.join(', ')}` : null,
+              day.pill !== undefined ? `Pill ${day.pill}` : null,
+            ].filter((part): part is string => part !== null);
+            return parts.length === 0
+              ? ''
+              : `<p><span class="tags">${escapeHtml(readableDate(day.date))}</span><br>${escapeHtml(parts.join(' · '))}</p>`;
+          })
+          .join('\n')}</section>`;
+
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -348,6 +390,7 @@ export function renderArchiveHtml(archive: Archive): string {
 ${span}
 ${entries}
 ${letters}
+${cycle}
 <footer>Exported ${escapeHtml(archive.exportedAt.slice(0, 10))}. This page needs nothing but a browser and no app at all, so it will still open in ten years. Photos and videos are not inside it — they are too large to travel in a page, and live in your photo library instead.</footer>
 </body>
 </html>`;

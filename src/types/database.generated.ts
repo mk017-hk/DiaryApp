@@ -75,6 +75,57 @@ export type Database = {
           },
         ]
       }
+      cycle_days: {
+        Row: {
+          discharge: string | null
+          energy: string | null
+          flow: string | null
+          intimacy: string[]
+          log_date: string
+          moods: string[]
+          period: boolean
+          pill: string | null
+          sleep_hours: number | null
+          symptoms: string[]
+          synced_at: string
+          updated_at: string
+          user_id: string
+          water: number | null
+        }
+        Insert: {
+          discharge?: string | null
+          energy?: string | null
+          flow?: string | null
+          intimacy?: string[]
+          log_date: string
+          moods?: string[]
+          period?: boolean
+          pill?: string | null
+          sleep_hours?: number | null
+          symptoms?: string[]
+          synced_at?: string
+          updated_at: string
+          user_id?: string
+          water?: number | null
+        }
+        Update: {
+          discharge?: string | null
+          energy?: string | null
+          flow?: string | null
+          intimacy?: string[]
+          log_date?: string
+          moods?: string[]
+          period?: boolean
+          pill?: string | null
+          sleep_hours?: number | null
+          symptoms?: string[]
+          synced_at?: string
+          updated_at?: string
+          user_id?: string
+          water?: number | null
+        }
+        Relationships: []
+      }
       diaries: {
         Row: {
           created_at: string
@@ -391,6 +442,7 @@ export type Database = {
           mood: number | null
           people: string[] | null
           resurface_excluded: boolean
+          synced_at: string
           thread_id: string | null
           title: string | null
           updated_at: string
@@ -411,6 +463,7 @@ export type Database = {
           mood?: number | null
           people?: string[] | null
           resurface_excluded?: boolean
+          synced_at?: string
           thread_id?: string | null
           title?: string | null
           updated_at?: string
@@ -431,6 +484,7 @@ export type Database = {
           mood?: number | null
           people?: string[] | null
           resurface_excluded?: boolean
+          synced_at?: string
           thread_id?: string | null
           title?: string | null
           updated_at?: string

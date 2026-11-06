@@ -18,6 +18,7 @@ import { ownDiary, pullEntries, pushEntries, type SyncContext } from '@/services
 import { forgetEmotions } from '@/services/supabase/emotions';
 import { forgetSignedUrls, reconcilePendingMedia, uploadMedia } from '@/services/supabase/media';
 import { sealedLetters, sendLetters } from '@/services/supabase/letters';
+import { pullCycleDays, pushCycleDays } from '@/services/supabase/cycle';
 import { pullMutes, pushMutes } from '@/services/supabase/mutes';
 import { pullThreads, pushThreads } from '@/services/supabase/threads';
 
@@ -84,6 +85,8 @@ function remoteFor(context: SyncContext): SyncRemote {
     pullThreads: () => pullThreads(context),
     pushMutes: (mutes) => pushMutes(mutes, context),
     pullMutes: () => pullMutes(context),
+    pushCycleDays: (logs) => pushCycleDays(logs, context),
+    pullCycleDays: (since) => pullCycleDays(since),
     sendLetters: (letters) => sendLetters(letters, context),
     pullLetters: async () => {
       const result = await sealedLetters();

@@ -1,6 +1,12 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import {
+  applyRemoteDayLogs,
+  markDayLogsSynced,
+  unsyncedDayLogs,
+  type DayLog,
+} from '@/features/cycle/dayLogStore';
+import {
   applyRemoteLetters,
   markSealed,
   unsentLetters,
@@ -41,6 +47,8 @@ import { applyRemoteThreads, markThreadsSynced, unsyncedThreads, type Thread } f
  */
 
 const WATERMARK_KEY = 'entries.watermark.v1';
+/** Cycle days keep their own, measured in the account's time, not the phone's. */
+const CYCLE_WATERMARK_KEY = 'cycle.watermark.v1';
 
 export interface PushOutcome {
   accepted: Entry[];
@@ -97,6 +105,17 @@ export interface SyncRemote {
    */
   sendLetters?(letters: Letter[]): Promise<RemoteResult<string[]>>;
   pullLetters?(): Promise<RemoteResult<{ id: string; unlockOn: string; createdAt: string }[]>>;
+  /**
+   * Cycle days, both directions.
+   *
+   * The push returns the account's version of each day sent, which for a day
+   * logged more recently elsewhere is the other phone's. The pull is measured
+   * from a watermark in the account's own time.
+   */
+  pushCycleDays?(logs: DayLog[]): Promise<RemoteResult<DayLog[]>>;
+  pullCycleDays?(
+    since: string | null,
+  ): Promise<RemoteResult<{ logs: DayLog[]; watermark: string | null }>>;
 }
 
 export interface SyncReport {
@@ -152,7 +171,7 @@ async function writeWatermark(value: string): Promise<void> {
  */
 export async function resetSyncState(): Promise<void> {
   try {
-    await AsyncStorage.removeItem(WATERMARK_KEY);
+    await AsyncStorage.multiRemove([WATERMARK_KEY, CYCLE_WATERMARK_KEY]);
   } catch {
     // Nothing useful to do, and nothing lost that a full pull cannot rebuild.
   }
@@ -219,6 +238,12 @@ async function runSync(remote: SyncRemote, options: SyncOptions): Promise<SyncRe
   // runs, a sealed letter's body is sitting in AsyncStorage on the phone. Every
   // pass that does this first is a window closed.
   const letters = await syncLetters(remote);
+
+  // --- cycle days ---------------------------------------------------------
+
+  // Independent of everything else: no foreign key to a diary, so no order to
+  // respect, and a failure here never holds up the diary.
+  await syncCycle(remote);
 
   // --- push ---------------------------------------------------------------
   const queued = await unsyncedEntries();
@@ -424,6 +449,49 @@ async function syncLetters(remote: SyncRemote): Promise<number> {
 }
 
 /**
+ * Cycle days, both ways.
+ *
+ * Failures do not fail the pass. A log that has not reached the account yet is
+ * still on the phone and still shown; it goes next time.
+ */
+async function syncCycle(remote: SyncRemote): Promise<number> {
+  let touched = 0;
+
+  if (remote.pushCycleDays !== undefined) {
+    const queued = await unsyncedDayLogs();
+    if (queued.length > 0) {
+      const result = await remote.pushCycleDays(queued);
+      if (result.ok) {
+        // The account's answer first: a day it kept a newer version of comes
+        // back here and replaces this phone's.
+        await applyRemoteDayLogs(result.value);
+        await markDayLogsSynced(queued.map(({ date, updatedAt }) => ({ date, updatedAt })));
+        touched += queued.length;
+      }
+    }
+  }
+
+  if (remote.pullCycleDays !== undefined) {
+    let since: string | null = null;
+    try {
+      since = await AsyncStorage.getItem(CYCLE_WATERMARK_KEY);
+    } catch {
+      since = null;
+    }
+    const result = await remote.pullCycleDays(since);
+    if (result.ok) {
+      touched += await applyRemoteDayLogs(result.value.logs);
+      // Last, and only once the rows have landed.
+      if (result.value.watermark !== null) {
+        await AsyncStorage.setItem(CYCLE_WATERMARK_KEY, result.value.watermark);
+      }
+    }
+  }
+
+  return touched;
+}
+
+/**
  * Sends recordings that are still only on this phone.
  *
  * One at a time and deliberately not in parallel: these are hundred-megabyte
@@ -451,6 +519,7 @@ async function uploadPendingMedia(remote: SyncRemote): Promise<number> {
 
 /** Test seam: clears the in-flight guard between cases. */
 export const __testing = {
+  CYCLE_WATERMARK_KEY,
   reset: () => {
     inFlight = null;
   },

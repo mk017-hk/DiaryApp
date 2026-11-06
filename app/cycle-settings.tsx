@@ -3,6 +3,7 @@ import { Alert, StyleSheet, Switch, View } from 'react-native';
 
 import { Button, Card, Icon, PressableScale, Screen, Stepper, Text } from '@/components';
 import { space, useTheme } from '@/design';
+import { deleteAllCycleDays } from '@/services/supabase/cycle';
 import { clearDayLogs, CYCLE_LENGTH_RANGE, PERIOD_LENGTH_RANGE, useCycle } from '@/features/cycle';
 
 /**
@@ -22,13 +23,25 @@ export default function CycleSettings() {
   const forget = () =>
     Alert.alert(
       'Delete your cycle data?',
-      'Every period, symptom and log on this phone, and in your account once it next syncs. Your diary entries are not touched. This cannot be undone.',
+      'Every period, symptom and log — on this phone and in your account. Your diary entries are not touched. Another phone signed in to your account keeps its own copy until you delete it there too. This cannot be undone.',
       [
         { text: 'Keep it', style: 'cancel' },
         {
           text: 'Delete',
           style: 'destructive',
-          onPress: () => void clearDayLogs(),
+          onPress: () => {
+            void (async () => {
+              // The account first: if that fails, the phone keeps its copy
+              // and she can try again, rather than being told it is gone
+              // while it is still in her account.
+              const result = await deleteAllCycleDays();
+              if (!result.ok) {
+                Alert.alert('That did not work', result.error.userMessage);
+                return;
+              }
+              await clearDayLogs();
+            })();
+          },
         },
       ],
     );

@@ -12,6 +12,7 @@ import {
   writeArchive,
   type WrittenArchive,
 } from '@/features/export';
+import { listDayLogs, loadCycleSettings } from '@/features/cycle/dayLogStore';
 import { listLetters } from '@/features/letters';
 import { useProfile } from '@/features/profile';
 import { logger } from '@/services/logger';
@@ -42,14 +43,28 @@ export default function Export() {
       setFailed(false);
 
       try {
-        const [entries, threads, quietDates, letters] = await Promise.all([
-          listEntries(),
-          listThreads(),
-          listQuietDates(),
-          listLetters(),
-        ]);
+        const [entries, threads, quietDates, letters, cycleDays, cycleSettings] = await Promise.all(
+          [
+            listEntries(),
+            listThreads(),
+            listQuietDates(),
+            listLetters(),
+            listDayLogs(),
+            loadCycleSettings(),
+          ],
+        );
 
-        setWritten(writeArchive({ entries, threads, quietDates, letters, profile }));
+        setWritten(
+          writeArchive({
+            entries,
+            threads,
+            quietDates,
+            letters,
+            cycleDays,
+            cycleSettings,
+            profile,
+          }),
+        );
       } catch (error) {
         logger.error('Could not write the export', { error });
         setFailed(true);

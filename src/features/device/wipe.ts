@@ -39,6 +39,7 @@ export const ACCOUNT_KEYS = [
   // itself, and it is one person's. It goes with the account.
   'cycle.days.v1',
   'cycle.settings.v1',
+  'cycle.watermark.v1',
   'reminders.v1',
 ] as const;
 

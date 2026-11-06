@@ -1,6 +1,6 @@
 import type { Entry } from '@/features/entries/entryStore';
 
-import { fromRow, toRow, type SyncContext } from '../entries';
+import { COLUMNS, fromRow, toRow, type SyncContext } from '../entries';
 
 /**
  * The row mapping, which is pure and therefore worth pinning down here rather
@@ -167,5 +167,32 @@ describe('emotions, which come back as ids', () => {
   // embed at all. Guessing would blank them on the device.
   it('leaves them alone when the response carried no emotions at all', () => {
     expect(fromRow(row, slugById).emotions).toEqual([]);
+  });
+});
+
+/**
+ * What is written has to be read back.
+ *
+ * A push adopts the account's copy of every entry it sends. Any column `toRow`
+ * writes that the push does not select comes back missing, and is cleared on
+ * the phone at that moment — which is how "Just for me" and "Never bring this
+ * back" used to switch themselves off after a sync.
+ */
+describe('the round trip through the account', () => {
+  it('selects every column it writes', () => {
+    const selected = new Set(COLUMNS.split(',').map((column) => column.trim()));
+    const written = Object.keys(toRow(entry, context));
+    expect(written.filter((column) => !selected.has(column))).toEqual([]);
+  });
+
+  it('keeps the privacy flags through a push and back', () => {
+    const flagged: Entry = {
+      ...entry,
+      isPersonal: true,
+      resurfaceExcluded: true,
+      aiExcluded: true,
+    };
+    const back = fromRow({ ...toRow(flagged, context), entry_media: [] } as never);
+    expect(back).toMatchObject({ isPersonal: true, resurfaceExcluded: true, aiExcluded: true });
   });
 });

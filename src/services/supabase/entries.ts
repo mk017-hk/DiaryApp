@@ -39,6 +39,8 @@ interface EntryRow {
   deleted_at: string | null;
   created_at: string;
   updated_at: string;
+  /** Set by the account when it accepts a write. Read, never written. */
+  synced_at?: string;
 }
 
 /**
@@ -154,8 +156,17 @@ export function fromRow(row: EntryRowWithMedia, slugById?: Map<string, string>):
   return entry;
 }
 
-const COLUMNS =
-  'id, diary_id, author_id, thread_id, ai_excluded, body, entry_date, entry_at, mood, is_favourite, deleted_at, created_at, updated_at';
+/**
+ * Every column the app writes, read back.
+ *
+ * Once this listed fewer columns than `toRow` writes, and the gap was not
+ * harmless: a push adopts the account's copy of each entry, so a flag missing
+ * here was cleared on the phone the moment it synced — and sent as off by the
+ * next edit. "Just for me" was one of them. A test now compares this list to
+ * what `toRow` produces.
+ */
+export const COLUMNS =
+  'id, diary_id, author_id, thread_id, ai_excluded, resurface_excluded, is_personal, body, entry_date, entry_at, mood, is_favourite, deleted_at, created_at, updated_at, synced_at';
 
 /** The push writes only `journal_entries`, so it asks for nothing else back. */
 const SELECT = COLUMNS;
@@ -251,7 +262,7 @@ export async function pushEntries(
 export interface PullOutcome {
   entries: Entry[];
   /**
-   * The newest `updated_at` seen, to ask from next time.
+   * The newest `synced_at` seen, to ask from next time.
    *
    * Taken from the rows rather than the device clock on purpose: a phone whose
    * clock is a few minutes fast would otherwise set a watermark in the future
@@ -285,10 +296,11 @@ export async function pullEntries(
       .from('journal_entries')
       .select(SELECT_WITH_MEDIA)
       .eq('diary_id', context.diaryId)
-      .order('updated_at', { ascending: true })
+      // In the account's time, not the phone's: see the synced_at migration.
+      .order('synced_at', { ascending: true })
       .limit(limit);
 
-    if (since !== null) query = query.gte('updated_at', since);
+    if (since !== null) query = query.gte('synced_at', since);
 
     const { data, error } = await query;
     if (error !== null) return { ok: false, error: toAppError(error, 'pull entries') };
@@ -296,7 +308,7 @@ export async function pullEntries(
     const rows = (data ?? []) as unknown as EntryRowWithMedia[];
     const { slugById } = await emotionIndex();
     const entries = rows.map((row) => fromRow(row, slugById));
-    const watermark = rows.length === 0 ? null : (rows[rows.length - 1]?.updated_at ?? null);
+    const watermark = rows.length === 0 ? null : (rows[rows.length - 1]?.synced_at ?? null);
 
     return { ok: true, value: { entries, watermark } };
   } catch (error) {
