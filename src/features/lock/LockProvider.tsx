@@ -13,6 +13,7 @@ import * as SecureStore from 'expo-secure-store';
 
 import { logger } from '@/services/logger';
 
+import { AwayClock } from './awayClock';
 import { clearPin, isLockSupported, isPinSet, setPin as persistPin, verifyPin } from './pinStorage';
 
 /**
@@ -61,7 +62,7 @@ export function LockProvider({ children }: { children: ReactNode }) {
 
   // Held in a ref rather than state: it is written from an AppState listener
   // and read on the next foreground, and must not trigger a re-render.
-  const backgroundedAt = useRef<number | null>(null);
+  const away = useRef(new AwayClock());
 
   useEffect(() => {
     let cancelled = false;
@@ -102,22 +103,13 @@ export function LockProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const onChange = (next: AppStateStatus) => {
-      if (next === 'active') {
-        const since = backgroundedAt.current;
-        backgroundedAt.current = null;
+      const gone = away.current.change(next, Date.now());
+      if (gone === null) return;
 
-        if (since === null) return;
-
-        setState((current) => {
-          if (current !== 'unlocked') return current;
-          return Date.now() - since >= TIMEOUT_MS[timeout] ? 'locked' : current;
-        });
-        return;
-      }
-
-      // 'inactive' fires for the app switcher and for system prompts. Record
-      // the moment either way; the timeout decides on return.
-      backgroundedAt.current ??= Date.now();
+      setState((current) => {
+        if (current !== 'unlocked') return current;
+        return gone >= TIMEOUT_MS[timeout] ? 'locked' : current;
+      });
     };
 
     const subscription = AppState.addEventListener('change', onChange);
@@ -126,6 +118,7 @@ export function LockProvider({ children }: { children: ReactNode }) {
 
   const enableLock = useCallback(async (pin: string) => {
     await persistPin(pin);
+    away.current.reset();
     setState('unlocked');
   }, []);
 
@@ -136,11 +129,15 @@ export function LockProvider({ children }: { children: ReactNode }) {
 
   const unlockWithPin = useCallback(async (pin: string) => {
     const result = await verifyPin(pin);
-    if (result.ok) setState('unlocked');
+    if (result.ok) {
+      away.current.reset();
+      setState('unlocked');
+    }
     return result;
   }, []);
 
   const unlockWithBiometrics = useCallback(() => {
+    away.current.reset();
     setState('unlocked');
   }, []);
 
