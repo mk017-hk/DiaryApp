@@ -39,6 +39,9 @@ expo-env.d.ts
 /ios/
 /android/
 
+# A sideloadable build (scripts/build-ipa.sh). Its build products go in build/.
+*.ipa
+
 # ---------------------------------------------------------------------------
 # Build output & caches
 # ---------------------------------------------------------------------------

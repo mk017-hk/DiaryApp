@@ -1,7 +1,8 @@
 # Getting Diary onto an iPhone
 
 Four ways, in order of how much they cost you. Only one of them produces a real
-app you can keep.
+app you can keep. To put it on somebody else's phone for free, see section 4
+and SIDELOADING.md.
 
 The short version: **an installable `.ipa` cannot be produced on Linux, and
 iOS will not run one that is not signed.** Those are two separate walls and
@@ -98,14 +99,15 @@ again from `app.config.ts`, which is where the real configuration lives.
 
 ---
 
-## 4. AltStore or Sideloadly — free, still 7 days, still needs an .ipa
+## 4. AltStore or Sideloadly — free, for testers, still 7 days
 
-These re-sign an existing `.ipa` with your own Apple ID from a Mac or Windows
-PC, and refresh it before it expires. They do not solve the problem, they move
-it: you still need somebody to have compiled the `.ipa` on a Mac first, and the
-free-Apple-ID seven-day limit still applies.
+The free way to put the app on somebody else's iPhone without them coming to
+your Mac. You build an unsigned `.ipa` with `npm run build:ipa`; they install it
+with Sideloadly or AltStore and their own free Apple ID, which signs it.
 
-Worth knowing about, not worth doing instead of option 2.
+**SIDELOADING.md** has both halves: how to make the file, and a page to send
+your tester. The seven-day limit still applies — the tools refresh the app
+before it runs out.
 
 ---
 
